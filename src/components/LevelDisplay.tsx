@@ -1,22 +1,35 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '../store/gameStore';
-import { getLevelProgress } from '../utils/levelSystem';
+import { getLevelProgress, getOutletImageByLevel } from '../utils/levelSystem';
 
 export const LevelDisplay: React.FC = () => {
   const { player, getCurrentLevelInfo } = useGameStore();
   const { currentLevel, progressInfo } = getCurrentLevelInfo();
   const progressPercent = getLevelProgress(player.experience);
+  
+  // Check if outlet image will change at next level
+  const currentOutletImage = getOutletImageByLevel(currentLevel.level);
+  const nextOutletImage = progressInfo.nextLevel ? getOutletImageByLevel(progressInfo.nextLevel.level) : null;
+  const outletWillChange = nextOutletImage && nextOutletImage !== currentOutletImage;
 
   return (
     <div className="glass-effect p-4 rounded-xl space-y-3">
       {/* Level Title and Number */}
       <div className="flex items-center justify-between">
-        <div>
-          <div className="text-xs text-gray-400 uppercase tracking-wide">Уровень</div>
-          <div className="flex items-baseline space-x-2">
-            <span className="text-2xl font-bold text-primary-orange">{currentLevel.level}</span>
-            <span className="text-sm text-gray-300">{currentLevel.title}</span>
+        <div className="flex items-center space-x-3">
+          {/* Current Outlet Image */}
+          <img 
+            src={getOutletImageByLevel(currentLevel.level)} 
+            alt={`Розетка уровня ${currentLevel.level}`}
+            className="w-12 h-12 rounded-lg border-2 border-primary-orange shadow-lg"
+          />
+          <div>
+            <div className="text-xs text-gray-400 uppercase tracking-wide">Уровень</div>
+            <div className="flex items-baseline space-x-2">
+              <span className="text-2xl font-bold text-primary-orange">{currentLevel.level}</span>
+              <span className="text-sm text-gray-300">{currentLevel.title}</span>
+            </div>
           </div>
         </div>
         <div className="text-right">
@@ -69,6 +82,18 @@ export const LevelDisplay: React.FC = () => {
             <span className="text-gray-400"> • </span>
             <span className="text-yellow-400">+{progressInfo.nextLevel.voltsReward}⚡</span>
           </div>
+          
+          {/* Show next outlet image if it will change */}
+          {outletWillChange && (
+            <div className="flex items-center justify-center space-x-2 mt-2">
+              <span className="text-xs text-blue-300">🎨 Новая розетка:</span>
+              <img 
+                src={nextOutletImage} 
+                alt={`Розетка уровня ${progressInfo.nextLevel.level}`}
+                className="w-6 h-6 rounded border border-blue-400 shadow-sm"
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LevelConfig } from '../utils/levelSystem';
+import { getOutletImageByLevel } from '../utils/levelSystem';
+import { hapticManager } from '../utils/hapticManager';
 
 interface LevelUpNotificationProps {
   isVisible: boolean;
@@ -15,6 +17,17 @@ export const LevelUpNotification: React.FC<LevelUpNotificationProps> = ({
   voltsReward,
   onClose
 }) => {
+  // Добавляем вибрацию при появлении уведомления
+  useEffect(() => {
+    if (isVisible) {
+      hapticManager.levelUp();
+    }
+  }, [isVisible]);
+  
+  // Check if outlet image changed with this level
+  const newOutletImage = getOutletImageByLevel(newLevel.level);
+  const previousOutletImage = getOutletImageByLevel(newLevel.level - 1);
+  const outletImageChanged = newOutletImage !== previousOutletImage;
   return (
     <AnimatePresence>
       {isVisible && (
@@ -116,6 +129,34 @@ export const LevelUpNotification: React.FC<LevelUpNotificationProps> = ({
                 <div className="text-2xl font-bold text-white">
                   +{voltsReward}⚡ Вольт
                 </div>
+                
+                {/* Show outlet upgrade notification */}
+                {outletImageChanged && (
+                  <div className="mt-3 pt-3 border-t border-yellow-400/30">
+                    <div className="text-sm font-bold text-blue-300 mb-2">
+                      🎨 Новое изображение розетки!
+                    </div>
+                    <div className="flex items-center justify-center space-x-4">
+                      <div className="text-center">
+                        <div className="text-xs text-gray-400">Было:</div>
+                        <img 
+                          src={previousOutletImage} 
+                          alt="Предыдущая розетка"
+                          className="w-8 h-8 rounded border border-gray-600"
+                        />
+                      </div>
+                      <div className="text-yellow-400">→</div>
+                      <div className="text-center">
+                        <div className="text-xs text-gray-400">Стало:</div>
+                        <img 
+                          src={newOutletImage} 
+                          alt="Новая розетка"
+                          className="w-8 h-8 rounded border border-blue-400"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </motion.div>
             </motion.div>
 

@@ -89,6 +89,9 @@ export const ScoreBreakdown: React.FC<ScoreBreakdownProps> = ({ onClose }) => {
               <div className="text-xs text-gray-400 mt-1">
                 Уровень 2: +50⚡ • Уровень 5: +150⚡ • Уровень 10: +500⚡
               </div>
+              <div className="text-xs text-blue-300 mt-2">
+                🎨 Изображение розетки меняется каждые 5 уровней!
+              </div>
             </div>
           </div>
 

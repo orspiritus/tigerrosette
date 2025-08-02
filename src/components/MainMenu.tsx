@@ -1,14 +1,23 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '../store/gameStore';
+import { hapticManager } from '../utils/hapticManager';
 import { ScoreBreakdown } from './ScoreBreakdown';
 import { LevelDisplay } from './LevelDisplay';
+import { HapticSettings } from './HapticSettings';
 
 export const MainMenu: React.FC = () => {
-  const { startSingleMode, player } = useGameStore();
+  const { startSingleMode, player, addExperience } = useGameStore();
   const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
+  const [showHapticSettings, setShowHapticSettings] = useState(false);
+  
+  // Development helper to test level system
+  const handleQuickLevelUp = () => {
+    addExperience(100); // Add 100 experience for testing
+  };
 
   const handleStartGame = (difficulty: 'easy' | 'medium' | 'hard' | 'extreme') => {
+    hapticManager.medium(); // Вибрация при начале игры
     startSingleMode(difficulty);
   };
 
@@ -143,7 +152,10 @@ export const MainMenu: React.FC = () => {
 
         {/* Score Breakdown Button */}
         <motion.button
-          onClick={() => setShowScoreBreakdown(true)}
+          onClick={() => {
+            hapticManager.light();
+            setShowScoreBreakdown(true);
+          }}
           className="w-full glass-effect p-3 rounded-xl hover:bg-blue-500/20 transition-colors border border-blue-400/30"
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
@@ -153,6 +165,22 @@ export const MainMenu: React.FC = () => {
             <span className="text-lg font-semibold text-blue-400">Очки и уровни</span>
           </div>
         </motion.button>
+
+        {/* Haptic Settings Button */}
+        <motion.button
+          onClick={() => {
+            hapticManager.light();
+            setShowHapticSettings(true);
+          }}
+          className="w-full glass-effect p-3 rounded-xl hover:bg-purple-500/20 transition-colors border border-purple-400/30"
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          <div className="flex justify-center items-center space-x-2">
+            <span className="text-lg">📳</span>
+            <span className="text-lg font-semibold text-purple-400">Вибрация</span>
+          </div>
+        </motion.button>
       </motion.div>
 
       {/* Score Breakdown Modal */}
@@ -160,15 +188,34 @@ export const MainMenu: React.FC = () => {
         <ScoreBreakdown onClose={() => setShowScoreBreakdown(false)} />
       )}
 
+      {/* Haptic Settings Modal */}
+      {showHapticSettings && (
+        <HapticSettings 
+          isVisible={showHapticSettings}
+          onClose={() => setShowHapticSettings(false)} 
+        />
+      )}
+
       {/* Footer */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5, delay: 1 }}
-        className="mt-8 text-center text-gray-400 text-sm"
+        className="mt-8 text-center text-gray-400 text-sm space-y-2"
       >
         <p>⚡ Играй осторожно! ⚡</p>
         <p className="mt-2">v1.0.0 | Single Mode</p>
+        
+        {/* Development button for testing levels */}
+        <button 
+          onClick={() => {
+            hapticManager.light();
+            handleQuickLevelUp();
+          }}
+          className="mt-2 px-3 py-1 text-xs bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 rounded transition-colors"
+        >
+          🔧 +100 опыта (тест)
+        </button>
       </motion.div>
     </div>
   );

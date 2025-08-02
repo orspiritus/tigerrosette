@@ -3,7 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../store/gameStore';
 import { SparkEffect } from '../types/game';
 import { soundManager } from '../utils/soundManager';
+import { hapticManager } from '../utils/hapticManager';
 import { ScorePopup } from './ScorePopup';
+import { useOutletImageAnimation } from '../hooks/useOutletImageAnimation';
 
 interface TigerOutletProps {
   className?: string;
@@ -14,8 +16,10 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '' }) => {
     clickOutlet, 
     singleMode, 
     gameState,
-    updateScore 
+    updateScore
   } = useGameStore();
+  
+  const { currentImage, isAnimating } = useOutletImageAnimation();
   
   const [sparks, setSparks] = useState<SparkEffect[]>([]);
   const [isPressed, setIsPressed] = useState(false);
@@ -69,6 +73,9 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '' }) => {
   const handleClick = useCallback(() => {
     if (!gameState.isPlaying || singleMode.shockActive) return;
 
+    // Добавляем вибрацию при нажатии
+    hapticManager.outletPress();
+
     setIsPressed(true);
     clickOutlet();
 
@@ -83,9 +90,12 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '' }) => {
     const isShocked = Math.random() < shockChance;
     
     if (isShocked) {
-      // Shock effect
+      // Shock effect with haptic feedback
       createSparks('extreme');
       setGlowIntensity(3);
+      
+      // Сильная вибрация при поражении током
+      hapticManager.electricShock();
       
       // Play shock sound
       soundManager.generateShockSound();
@@ -103,13 +113,16 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '' }) => {
       updateScore(scoreData);
       showScorePopup(scoreData.totalPoints, scoreData.reason, 'shock');
     } else {
-      // Success effect
+      // Success effect with haptic feedback
       const intensity = singleMode.currentRisk === 'extreme' ? 'extreme' :
                        singleMode.currentRisk === 'high' ? 'high' :
                        singleMode.currentRisk === 'medium' ? 'medium' : 'low';
       
       createSparks(intensity);
       setGlowIntensity(2);
+
+      // Вибрация успешного выживания
+      hapticManager.survivalSuccess();
 
       // Play spark sound based on intensity
       soundManager.generateSparkSound(intensity);
@@ -140,6 +153,11 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '' }) => {
 
       updateScore(scoreData);
       showScorePopup(scoreData.totalPoints, scoreData.reason, 'success');
+      
+      // Дополнительная вибрация для серий достижений
+      if (singleMode.streakCount > 0 && singleMode.streakCount % 5 === 0) {
+        hapticManager.streakAchievement(singleMode.streakCount);
+      }
     }
 
     // Reset visual effects
@@ -174,10 +192,14 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '' }) => {
         whileHover={{ scale: 1.05 }}
         animate={{
           scale: isPressed ? 0.9 : 1,
-          filter: `brightness(${glowIntensity}) saturate(${glowIntensity})`
+          filter: `brightness(${glowIntensity}) saturate(${glowIntensity})`,
+          rotateY: isAnimating ? [0, 180, 360] : 0
+        }}
+        transition={{
+          rotateY: { duration: 0.6, ease: "easeInOut" }
         }}
         style={{
-          backgroundImage: 'url(/Media/Pictures/tigrrozetka5.png)',
+          backgroundImage: `url(${currentImage})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           boxShadow: `0 0 ${20 * glowIntensity}px rgba(255, 107, 53, ${0.5 * glowIntensity})`
