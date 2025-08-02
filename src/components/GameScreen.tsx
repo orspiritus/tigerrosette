@@ -1,0 +1,254 @@
+import React, { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
+import { useGameStore } from '../store/gameStore';
+import { TigerOutlet } from './TigerOutlet';
+import { GameHUD } from './GameHUD';
+import { soundManager } from '../utils/soundManager';
+
+export const GameScreen: React.FC = () => {
+  const { 
+    gameState, 
+    singleMode, 
+    endGame, 
+    triggerWarning, 
+    triggerShock,
+    player 
+  } = useGameStore();
+  
+  const [gameTime, setGameTime] = useState(0);
+  const [showGameOver, setShowGameOver] = useState(false);
+
+  // Game timer
+  useEffect(() => {
+    if (!gameState.isPlaying) return;
+
+    const interval = setInterval(() => {
+      setGameTime(prev => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [gameState.isPlaying]);
+
+  // AI Electrician Logic
+  useEffect(() => {
+    if (!gameState.isPlaying) return;
+
+    const difficulty = singleMode.difficulty;
+    const config = {
+      easy: { 
+        shockProbability: 0.15, 
+        warningTime: 2000, 
+        minInterval: 3000, 
+        maxInterval: 8000 
+      },
+      medium: { 
+        shockProbability: 0.25, 
+        warningTime: 1500, 
+        minInterval: 2500, 
+        maxInterval: 6000 
+      },
+      hard: { 
+        shockProbability: 0.35, 
+        warningTime: 1000, 
+        minInterval: 2000, 
+        maxInterval: 5000 
+      },
+      extreme: { 
+        shockProbability: 0.50, 
+        warningTime: 500, 
+        minInterval: 1000, 
+        maxInterval: 3000 
+      }
+    }[difficulty];
+
+    const scheduleNext = () => {
+      const delay = Math.random() * (config.maxInterval - config.minInterval) + config.minInterval;
+      
+      setTimeout(() => {
+        if (!gameState.isPlaying) return;
+
+        // Trigger warning
+        triggerWarning();
+        soundManager.generateWarningSound();
+        
+        // Schedule potential shock
+        setTimeout(() => {
+          if (!gameState.isPlaying) return;
+          
+          if (Math.random() < config.shockProbability) {
+            triggerShock();
+          }
+          
+          scheduleNext();
+        }, config.warningTime);
+      }, delay);
+    };
+
+    scheduleNext();
+  }, [gameState.isPlaying, singleMode.difficulty, triggerWarning, triggerShock]);
+
+  // Handle game over conditions
+  useEffect(() => {
+    // Game over after 10 minutes or specific achievements
+    if (gameTime >= 600) { // 10 minutes
+      setShowGameOver(true);
+    }
+  }, [gameTime]);
+
+  const handleEndGame = () => {
+    setShowGameOver(false);
+    setGameTime(0);
+    endGame();
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  if (showGameOver) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background-dark to-background-darker">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="glass-effect p-8 text-center max-w-md"
+        >
+          <h2 className="text-3xl font-bold text-primary-orange mb-4">
+            Игра окончена!
+          </h2>
+          
+          <div className="space-y-3 mb-6">
+            <div className="flex justify-between">
+              <span>Время игры:</span>
+              <span className="font-bold">{formatTime(gameTime)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Финальный счёт:</span>
+              <span className="font-bold text-accent-lime">{gameState.score.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Получено вольт:</span>
+              <span className="font-bold text-primary-orange">{gameState.score}⚡</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Всего нажатий:</span>
+              <span className="font-bold text-accent-blue">{player.totalClicks}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Лучшая серия:</span>
+              <span className="font-bold text-yellow-400">{player.streak}</span>
+            </div>
+          </div>
+
+          <motion.button
+            onClick={handleEndGame}
+            className="w-full glass-effect p-3 rounded-xl hover:bg-primary-orange/20 transition-colors"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <span className="font-bold">Вернуться в меню</span>
+          </motion.button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background-dark to-background-darker relative">
+      {/* Game HUD */}
+      <GameHUD />
+      
+      {/* Main Game Area */}
+      <div className="flex flex-col items-center justify-center min-h-screen pt-24 pb-8">
+        {/* Game Timer */}
+        <motion.div
+          className="glass-effect px-6 py-3 mb-8"
+          animate={{ 
+            scale: gameTime % 10 === 0 && gameTime > 0 ? [1, 1.1, 1] : 1 
+          }}
+        >
+          <div className="text-center">
+            <div className="text-xs text-gray-300">ВРЕМЯ ИГРЫ</div>
+            <div className="text-2xl font-bold text-white font-mono">
+              {formatTime(gameTime)}
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Tiger Outlet - Main Game Element */}
+        <TigerOutlet className="mb-8" />
+
+        {/* Quick Stats */}
+        <div className="flex space-x-4 text-center">
+          <motion.div 
+            className="glass-effect px-4 py-2"
+            whileHover={{ scale: 1.05 }}
+          >
+            <div className="text-xs text-gray-300">ПОСЛЕДНИЙ РИСК</div>
+            <div className={`text-sm font-bold ${
+              singleMode.currentRisk === 'extreme' ? 'text-red-400' :
+              singleMode.currentRisk === 'high' ? 'text-orange-400' :
+              singleMode.currentRisk === 'medium' ? 'text-yellow-400' :
+              'text-green-400'
+            }`}>
+              {singleMode.currentRisk === 'extreme' ? 'ЭКСТРИМ' :
+               singleMode.currentRisk === 'high' ? 'ВЫСОКИЙ' :
+               singleMode.currentRisk === 'medium' ? 'СРЕДНИЙ' : 'НИЗКИЙ'}
+            </div>
+          </motion.div>
+
+          <motion.div 
+            className="glass-effect px-4 py-2"
+            whileHover={{ scale: 1.05 }}
+          >
+            <div className="text-xs text-gray-300">СТАТУС ИИ</div>
+            <div className={`text-sm font-bold ${
+              singleMode.warningActive ? 'text-yellow-400' :
+              singleMode.shockActive ? 'text-red-400' :
+              'text-green-400'
+            }`}>
+              {singleMode.warningActive ? 'ПРЕДУПРЕЖДЕНИЕ' :
+               singleMode.shockActive ? 'РАЗРЯД' :
+               'БЕЗОПАСНО'}
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Pause/Exit Button */}
+        <motion.button
+          onClick={handleEndGame}
+          className="mt-8 glass-effect px-6 py-3 rounded-xl hover:bg-red-500/20 transition-colors"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <span className="text-red-300 font-bold">Завершить игру</span>
+        </motion.button>
+      </div>
+
+      {/* Background Effects */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        {/* Electric grid animation */}
+        <motion.div
+          className="absolute inset-0 opacity-10"
+          animate={{
+            backgroundPosition: ['0% 0%', '100% 100%'],
+          }}
+          transition={{
+            duration: 20,
+            repeat: Infinity,
+            ease: 'linear'
+          }}
+          style={{
+            backgroundImage: `
+              linear-gradient(0deg, transparent 24%, rgba(255, 107, 53, 0.05) 25%, rgba(255, 107, 53, 0.05) 26%, transparent 27%, transparent 74%, rgba(255, 107, 53, 0.05) 75%, rgba(255, 107, 53, 0.05) 76%, transparent 77%, transparent),
+              linear-gradient(90deg, transparent 24%, rgba(255, 107, 53, 0.05) 25%, rgba(255, 107, 53, 0.05) 26%, transparent 27%, transparent 74%, rgba(255, 107, 53, 0.05) 75%, rgba(255, 107, 53, 0.05) 76%, transparent 77%, transparent)
+            `,
+            backgroundSize: '50px 50px'
+          }}
+        />
+      </div>
+    </div>
+  );
+};

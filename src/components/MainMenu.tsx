@@ -1,0 +1,175 @@
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import { useGameStore } from '../store/gameStore';
+import { ScoreBreakdown } from './ScoreBreakdown';
+import { LevelDisplay } from './LevelDisplay';
+
+export const MainMenu: React.FC = () => {
+  const { startSingleMode, player } = useGameStore();
+  const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
+
+  const handleStartGame = (difficulty: 'easy' | 'medium' | 'hard' | 'extreme') => {
+    startSingleMode(difficulty);
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-background-dark to-background-darker">
+      {/* Logo */}
+      <motion.div
+        initial={{ opacity: 0, y: -50 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8 }}
+        className="text-center mb-8"
+      >
+        <h1 className="text-6xl font-bold text-primary-orange tiger-stripes bg-clip-text text-transparent mb-4">
+          ТИГР
+        </h1>
+        <h2 className="text-4xl font-bold text-accent-blue mb-2">
+          РОЗЕТКА
+        </h2>
+        <p className="text-lg text-gray-300">
+          Telegram Mini App Game
+        </p>
+      </motion.div>
+
+      {/* Level Display */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.2 }}
+        className="mb-6"
+      >
+        <LevelDisplay />
+      </motion.div>
+
+      {/* Player Stats */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5, delay: 0.3 }}
+        className="glass-effect p-6 mb-8 text-center"
+      >
+        <div className="text-sm text-gray-300 mb-2">Добро пожаловать, {player.name}!</div>
+        <div className="flex justify-center space-x-6">
+          <div>
+            <div className="text-xs text-gray-400">ВОЛЬТЫ</div>
+            <div className="text-xl font-bold text-primary-orange">{player.volts}⚡</div>
+          </div>
+          <div>
+            <div className="text-xs text-gray-400">УРОВЕНЬ</div>
+            <div className="text-xl font-bold text-accent-blue">{player.level}</div>
+          </div>
+          <div>
+            <div className="text-xs text-gray-400">ВСЕГО НАЖАТИЙ</div>
+            <div className="text-xl font-bold text-accent-lime">{player.totalClicks}</div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Game Mode Selection */}
+      <motion.div
+        initial={{ opacity: 0, y: 50 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.5 }}
+        className="w-full max-w-md space-y-4"
+      >
+        <h3 className="text-2xl font-bold text-center text-white mb-6">
+          Выберите сложность
+        </h3>
+
+        {/* Easy Mode */}
+        <motion.button
+          onClick={() => handleStartGame('easy')}
+          className="w-full glass-effect p-4 rounded-xl hover:bg-green-500/20 transition-colors"
+          whileHover={{ scale: 1.02, x: 10 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          <div className="flex justify-between items-center">
+            <div className="text-left">
+              <div className="text-lg font-bold text-green-400">ЛЁГКИЙ</div>
+              <div className="text-sm text-gray-300">15% шанс разряда • 2 сек предупреждение</div>
+            </div>
+            <div className="text-2xl">🟢</div>
+          </div>
+        </motion.button>
+
+        {/* Medium Mode */}
+        <motion.button
+          onClick={() => handleStartGame('medium')}
+          className="w-full glass-effect p-4 rounded-xl hover:bg-yellow-500/20 transition-colors"
+          whileHover={{ scale: 1.02, x: 10 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          <div className="flex justify-between items-center">
+            <div className="text-left">
+              <div className="text-lg font-bold text-yellow-400">СРЕДНИЙ</div>
+              <div className="text-sm text-gray-300">25% шанс разряда • 1.5 сек предупреждение</div>
+            </div>
+            <div className="text-2xl">🟡</div>
+          </div>
+        </motion.button>
+
+        {/* Hard Mode */}
+        <motion.button
+          onClick={() => handleStartGame('hard')}
+          className="w-full glass-effect p-4 rounded-xl hover:bg-orange-500/20 transition-colors"
+          whileHover={{ scale: 1.02, x: 10 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          <div className="flex justify-between items-center">
+            <div className="text-left">
+              <div className="text-lg font-bold text-orange-400">СЛОЖНЫЙ</div>
+              <div className="text-sm text-gray-300">35% шанс разряда • 1 сек предупреждение</div>
+            </div>
+            <div className="text-2xl">🟠</div>
+          </div>
+        </motion.button>
+
+        {/* Extreme Mode */}
+        <motion.button
+          onClick={() => handleStartGame('extreme')}
+          className="w-full glass-effect p-4 rounded-xl hover:bg-red-500/20 transition-colors"
+          whileHover={{ scale: 1.02, x: 10 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          <div className="flex justify-between items-center">
+            <div className="text-left">
+              <div className="text-lg font-bold text-red-400">ЭКСТРИМ</div>
+              <div className="text-sm text-gray-300">50% шанс разряда • 0.5 сек предупреждение</div>
+            </div>
+            <div className="text-2xl">🔴</div>
+          </div>
+        </motion.button>
+
+        {/* Score Breakdown Button */}
+        <motion.button
+          onClick={() => setShowScoreBreakdown(true)}
+          className="w-full glass-effect p-3 rounded-xl hover:bg-blue-500/20 transition-colors border border-blue-400/30"
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          <div className="flex justify-center items-center space-x-2">
+            <span className="text-lg">📊</span>
+            <span className="text-lg font-semibold text-blue-400">Очки и уровни</span>
+          </div>
+        </motion.button>
+      </motion.div>
+
+      {/* Score Breakdown Modal */}
+      {showScoreBreakdown && (
+        <ScoreBreakdown onClose={() => setShowScoreBreakdown(false)} />
+      )}
+
+      {/* Footer */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5, delay: 1 }}
+        className="mt-8 text-center text-gray-400 text-sm"
+      >
+        <p>⚡ Играй осторожно! ⚡</p>
+        <p className="mt-2">v1.0.0 | Single Mode</p>
+      </motion.div>
+    </div>
+  );
+};
