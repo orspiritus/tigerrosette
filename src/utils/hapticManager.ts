@@ -9,6 +9,18 @@ import type { TelegramHapticFeedback } from '../types/telegram';
 export type HapticType = 'light' | 'medium' | 'heavy' | 'rigid' | 'soft';
 export type NotificationType = 'error' | 'success' | 'warning';
 
+// Расширяем Window интерфейс для Telegram
+declare global {
+  interface Window {
+    Telegram?: {
+      WebApp?: {
+        HapticFeedback?: TelegramHapticFeedback;
+        [key: string]: any;
+      };
+    };
+  }
+}
+
 class HapticManager {
   private hapticFeedback: TelegramHapticFeedback | null = null;
   private isEnabled: boolean = true;
@@ -53,7 +65,10 @@ class HapticManager {
    * Проверка доступности вибрации
    */
   isAvailable(): boolean {
-    return this.isTelegramEnvironment && this.hapticFeedback !== null && this.isEnabled;
+    return (
+      (this.isTelegramEnvironment && this.hapticFeedback !== null) || 
+      (typeof window !== 'undefined' && 'navigator' in window && 'vibrate' in navigator)
+    ) && this.isEnabled;
   }
 
   /**
@@ -267,10 +282,60 @@ class HapticManager {
     if ('navigator' in window && 'vibrate' in navigator) {
       try {
         navigator.vibrate(duration);
+        console.log(`🔹 Fallback vibration: ${duration}ms`);
       } catch (error) {
         console.warn('Vibration not supported:', error);
       }
+    } else {
+      // Визуальная обратная связь для устройств без вибрации
+      console.log(`📳 Haptic feedback: ${duration}ms (visual only)`);
+      this.visualFeedback(duration);
     }
+  }
+
+  /**
+   * Визуальная обратная связь для устройств без вибрации
+   */
+  private visualFeedback(duration: number): void {
+    // Создаем временную визуальную индикацию
+    const indicator = document.createElement('div');
+    indicator.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #FF6B35;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: bold;
+      z-index: 10000;
+      pointer-events: none;
+      animation: pulse 0.3s ease-in-out;
+    `;
+    indicator.textContent = `📳 ${duration}ms`;
+    
+    // Добавляем CSS анимацию
+    if (!document.querySelector('#haptic-style')) {
+      const style = document.createElement('style');
+      style.id = 'haptic-style';
+      style.textContent = `
+        @keyframes pulse {
+          0% { transform: scale(0.8); opacity: 0; }
+          50% { transform: scale(1.1); opacity: 1; }
+          100% { transform: scale(1); opacity: 0.8; }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(indicator);
+    
+    setTimeout(() => {
+      if (indicator.parentNode) {
+        indicator.parentNode.removeChild(indicator);
+      }
+    }, Math.max(duration, 500));
   }
 
   /**
@@ -280,9 +345,31 @@ class HapticManager {
     if ('navigator' in window && 'vibrate' in navigator) {
       try {
         navigator.vibrate(pattern);
+        console.log(`🔹 Vibration pattern: [${pattern.join(', ')}]ms`);
       } catch (error) {
         console.warn('Vibration pattern not supported:', error);
       }
+    } else {
+      // Эмуляция паттерна через визуальную обратную связь
+      console.log(`📳 Haptic pattern: [${pattern.join(', ')}]ms (visual only)`);
+      this.visualPatternFeedback(pattern);
+    }
+  }
+
+  /**
+   * Визуальная эмуляция паттерна вибрации
+   */
+  private visualPatternFeedback(pattern: number[]): void {
+    let delay = 0;
+    for (let i = 0; i < pattern.length; i += 2) {
+      const vibrateDuration = pattern[i];
+      const pauseDuration = pattern[i + 1] || 0;
+      
+      setTimeout(() => {
+        this.visualFeedback(vibrateDuration);
+      }, delay);
+      
+      delay += vibrateDuration + pauseDuration;
     }
   }
 

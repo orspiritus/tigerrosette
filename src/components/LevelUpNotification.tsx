@@ -25,6 +25,13 @@ export const LevelUpNotification: React.FC<LevelUpNotificationProps> = ({
   }, [isVisible]);
   
   // Check if outlet image changed with this level
+  if (!newLevel || !newLevel.level) {
+    if (isVisible) {
+      console.warn('LevelUpNotification: newLevel is invalid', newLevel);
+    }
+    return null;
+  }
+  
   const newOutletImage = getOutletImageByLevel(newLevel.level);
   const previousOutletImage = getOutletImageByLevel(newLevel.level - 1);
   const outletImageChanged = newOutletImage !== previousOutletImage;

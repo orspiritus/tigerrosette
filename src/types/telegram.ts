@@ -111,12 +111,4 @@ export interface TelegramWebApp {
   setBackgroundColor: (color: string) => void;
 }
 
-declare global {
-  interface Window {
-    Telegram?: {
-      WebApp: TelegramWebApp;
-    };
-  }
-}
-
 export default TelegramWebApp;

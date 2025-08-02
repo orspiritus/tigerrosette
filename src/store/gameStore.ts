@@ -107,7 +107,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   sounds: defaultSounds,
   levelUpNotification: {
     isVisible: false,
-    level: undefined,
+    level: null,
     voltsReward: 0
   },
 
@@ -357,7 +357,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       levelUpNotification: {
         isVisible: false,
-        level: undefined,
+        level: null,
         voltsReward: 0
       }
     });

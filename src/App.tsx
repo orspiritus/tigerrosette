@@ -4,41 +4,18 @@ import { MainMenu } from './components/MainMenu';
 import { GameScreen } from './components/GameScreen';
 import { LevelUpNotification } from './components/LevelUpNotification';
 
-// Initialize Telegram WebApp
-declare global {
-  interface Window {
-    Telegram: {
-      WebApp: {
-        ready: () => void;
-        expand: () => void;
-        MainButton: {
-          text: string;
-          show: () => void;
-          hide: () => void;
-        };
-        themeParams: {
-          bg_color: string;
-          text_color: string;
-          hint_color: string;
-          link_color: string;
-          button_color: string;
-          button_text_color: string;
-        };
-      };
-    };
-  }
-}
-
 function App() {
   const { gameState, levelUpNotification, hideLevelUpNotification } = useGameStore();
 
   useEffect(() => {
     // Initialize Telegram WebApp
-    if (window.Telegram?.WebApp) {
+    if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
       window.Telegram.WebApp.ready();
       window.Telegram.WebApp.expand();
     }
   }, []);
+
+  console.log('App rendering, mode:', gameState.mode);
 
   return (
     <div className="App">
@@ -46,12 +23,14 @@ function App() {
       {gameState.mode === 'single' && <GameScreen />}
       
       {/* Level Up Notification - Global */}
-      <LevelUpNotification
-        isVisible={levelUpNotification.isVisible}
-        newLevel={levelUpNotification.level}
-        voltsReward={levelUpNotification.voltsReward || 0}
-        onClose={hideLevelUpNotification}
-      />
+      {levelUpNotification.level && (
+        <LevelUpNotification
+          isVisible={levelUpNotification.isVisible}
+          newLevel={levelUpNotification.level}
+          voltsReward={levelUpNotification.voltsReward || 0}
+          onClose={hideLevelUpNotification}
+        />
+      )}
     </div>
   );
 }

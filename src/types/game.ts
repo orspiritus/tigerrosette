@@ -104,8 +104,8 @@ export interface GameStore {
   sounds: SoundConfig;
   levelUpNotification: {
     isVisible: boolean;
-    level?: any;
-    voltsReward?: number;
+    level: any | null;
+    voltsReward: number;
   };
   
   // Actions
