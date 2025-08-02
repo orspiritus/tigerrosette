@@ -9,6 +9,7 @@ export const useOutletImageAnimation = () => {
 
   useEffect(() => {
     const newImage = getOutletImageByLevel(player.level);
+    console.log(`Player level: ${player.level}, Image path: ${newImage}`);
     
     if (newImage !== currentImage) {
       // Start animation

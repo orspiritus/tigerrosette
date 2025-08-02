@@ -209,6 +209,9 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '' }) => {
           className="absolute inset-0 w-full h-full object-cover rounded-2xl"
           onError={(e) => {
             console.error('Image failed to load:', currentImage);
+            console.error('Error event:', e);
+            console.error('Current window location:', window.location.href);
+            console.error('Trying full path:', `${window.location.origin}${currentImage}`);
             // Fallback to a solid background
             e.currentTarget.style.display = 'none';
           }}
