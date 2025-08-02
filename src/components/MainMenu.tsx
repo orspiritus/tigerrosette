@@ -5,6 +5,7 @@ import { hapticManager } from '../utils/hapticManager';
 import { ScoreBreakdown } from './ScoreBreakdown';
 import { LevelDisplay } from './LevelDisplay';
 import { HapticSettings } from './HapticSettings';
+import { TelegramUserInfo } from './TelegramUserInfo';
 
 export const MainMenu: React.FC = () => {
   const { startSingleMode, player, addExperience } = useGameStore();
@@ -49,6 +50,16 @@ export const MainMenu: React.FC = () => {
         className="mb-6"
       >
         <LevelDisplay />
+      </motion.div>
+
+      {/* Telegram User Info */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.25 }}
+        className="mb-4 w-full max-w-md"
+      >
+        <TelegramUserInfo />
       </motion.div>
 
       {/* Player Stats */}
