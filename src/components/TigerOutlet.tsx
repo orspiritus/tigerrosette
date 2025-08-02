@@ -16,7 +16,8 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '' }) => {
     clickOutlet, 
     singleMode, 
     gameState,
-    updateScore
+    updateScore,
+    triggerShock
   } = useGameStore();
   
   const { currentImage, isAnimating } = useOutletImageAnimation();
@@ -100,18 +101,30 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '' }) => {
       // Play shock sound
       soundManager.generateShockSound();
       
-      // Calculate shock score (consolation prize)
-      const scoreData = {
-        basePoints: 8,
-        riskMultiplier: 1,
-        streakBonus: 0,
-        timeBonus: 0,
-        totalPoints: 8 + Math.floor(Math.random() * 17), // 8-25 points
-        reason: 'Поражение током'
-      };
+      // Trigger shock with penalties (handled in store)
+      triggerShock();
       
-      updateScore(scoreData);
-      showScorePopup(scoreData.totalPoints, scoreData.reason, 'shock');
+      // Check for penalty message and show it
+      setTimeout(() => {
+        const penaltyMessage = (window as any).lastPenaltyMessage;
+        if (penaltyMessage) {
+          showScorePopup(0, penaltyMessage, 'shock');
+          (window as any).lastPenaltyMessage = null;
+        } else {
+          // Show consolation prize for lower levels
+          const scoreData = {
+            basePoints: 8,
+            riskMultiplier: 1,
+            streakBonus: 0,
+            timeBonus: 0,
+            totalPoints: 8 + Math.floor(Math.random() * 17), // 8-25 points
+            reason: 'Поражение током'
+          };
+          
+          updateScore(scoreData);
+          showScorePopup(scoreData.totalPoints, scoreData.reason, 'shock');
+        }
+      }, 100);
     } else {
       // Success effect with haptic feedback
       const intensity = singleMode.currentRisk === 'extreme' ? 'extreme' :

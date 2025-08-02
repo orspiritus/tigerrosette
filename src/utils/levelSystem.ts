@@ -11,9 +11,9 @@ export interface LevelConfig {
 export const LEVEL_CONFIGS: LevelConfig[] = [
   { level: 1, requiredExperience: 0, voltsReward: 0, title: "Новичок", description: "Первые шаги с электричеством" },
   { level: 2, requiredExperience: 100, voltsReward: 50, title: "Ученик", description: "Осваиваете основы" },
-  { level: 3, requiredExperience: 250, voltsReward: 75, title: "Практикант", description: "Набираетесь опыта" },
-  { level: 4, requiredExperience: 500, voltsReward: 100, title: "Любитель", description: "Понимаете принципы" },
-  { level: 5, requiredExperience: 850, voltsReward: 150, title: "Энтузиаст", description: "Проявляете смелость" },
+  { level: 3, requiredExperience: 250, voltsReward: 75, title: "Практикант", description: "⚠️ Опасно! Теперь удар током отнимает очки" },
+  { level: 4, requiredExperience: 500, voltsReward: 100, title: "Любитель", description: "🔥 Критично! Напряжение отнимается от очков" },
+  { level: 5, requiredExperience: 850, voltsReward: 150, title: "Энтузиаст", description: "Проявляете смелость в опасной игре" },
   { level: 6, requiredExperience: 1300, voltsReward: 200, title: "Смельчак", description: "Не боитесь рисковать" },
   { level: 7, requiredExperience: 1900, voltsReward: 250, title: "Храбрец", description: "Идете на оправданный риск" },
   { level: 8, requiredExperience: 2600, voltsReward: 300, title: "Отважный", description: "Покоряете сложности" },

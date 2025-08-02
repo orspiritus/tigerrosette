@@ -219,7 +219,30 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   triggerShock: () => {
     const state = get();
+    let newScore = state.gameState.score;
+    let newVolts = state.player.volts;
+    let penaltyMessage = '';
+
+    // Calculate penalties based on player level
+    const playerLevel = calculateLevel(state.player.experience).level;
+    
+    if (playerLevel >= 4) {
+      // С 4-го уровня: отнимаем напряжение от очков
+      const voltsPenalty = Math.min(state.player.volts, Math.floor(state.gameState.score * 0.1)); // 10% от очков или все вольты
+      newScore = Math.max(0, state.gameState.score - voltsPenalty);
+      penaltyMessage = `Потеряно ${voltsPenalty} очков (напряжение)!`;
+    } else if (playerLevel >= 3) {
+      // С 3-го уровня: отнимаем очки
+      const scorePenalty = Math.floor(state.gameState.score * 0.05); // 5% от текущих очков
+      newScore = Math.max(0, state.gameState.score - scorePenalty);
+      penaltyMessage = `Потеряно ${scorePenalty} очков!`;
+    }
+
     set({
+      gameState: {
+        ...state.gameState,
+        score: newScore
+      },
       singleMode: {
         ...state.singleMode,
         shockActive: true,
@@ -227,9 +250,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
       },
       player: {
         ...state.player,
-        streak: 0
+        streak: 0,
+        volts: newVolts
       }
     });
+
+    // Show penalty message if there was one
+    if (penaltyMessage && typeof window !== 'undefined') {
+      // Store penalty message for UI to show
+      (window as any).lastPenaltyMessage = penaltyMessage;
+    }
 
     // Reset shock after animation
     setTimeout(() => {
