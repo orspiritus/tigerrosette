@@ -100,6 +100,7 @@ export const EXPERIENCE_REWARDS = {
 export function getOutletImageByLevel(level: number): string {
   // We have 4 different outlet images (tigrrozetka_1.png to tigrrozetka_4.png)
   // Cycle through them based on level ranges
+  
   if (level <= 5) {
     return '/Media/Pictures/tigrrozetka_1.png';
   } else if (level <= 10) {

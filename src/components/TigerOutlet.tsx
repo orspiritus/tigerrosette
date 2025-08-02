@@ -187,7 +187,7 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '' }) => {
       <motion.button
         onClick={handleClick}
         disabled={!gameState.isPlaying || singleMode.shockActive}
-        className="relative w-64 h-64 rounded-2xl overflow-hidden disabled:opacity-50"
+        className="relative w-64 h-64 rounded-2xl overflow-hidden disabled:opacity-50 bg-gray-800"
         whileTap={{ scale: 0.95 }}
         whileHover={{ scale: 1.05 }}
         animate={{
@@ -199,12 +199,24 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '' }) => {
           rotateY: { duration: 0.6, ease: "easeInOut" }
         }}
         style={{
-          backgroundImage: `url(${currentImage})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
           boxShadow: `0 0 ${20 * glowIntensity}px rgba(255, 107, 53, ${0.5 * glowIntensity})`
         }}
       >
+        {/* Main Outlet Image */}
+        <img 
+          src={currentImage} 
+          alt="Tiger Outlet" 
+          className="absolute inset-0 w-full h-full object-cover rounded-2xl"
+          onError={(e) => {
+            console.error('Image failed to load:', currentImage);
+            // Fallback to a solid background
+            e.currentTarget.style.display = 'none';
+          }}
+          onLoad={() => {
+            console.log('Image loaded successfully:', currentImage);
+          }}
+        />
+        
         {/* Tiger Stripes Overlay */}
         <div className="absolute inset-0 tiger-stripes opacity-20 mix-blend-overlay" />
         
