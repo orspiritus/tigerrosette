@@ -1,0 +1,17 @@
+{
+  "name": "TigerRozetka",
+  "short_name": "TigerRozetka",
+  "description": "Захватывающая игра с электричеством в Telegram",
+  "icons": [
+    {
+      "src": "/tigerrosette/Media/Pictures/tigrrozetka_ico.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ],
+  "start_url": "/tigerrosette/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#E8FF00",
+  "orientation": "portrait"
+}
