@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '../store/gameStore';
+import { ConnectionStatus } from './ConnectionStatus';
 
 export const GameHUD: React.FC = () => {
   const { player, gameState, singleMode } = useGameStore();
@@ -83,6 +84,9 @@ export const GameHUD: React.FC = () => {
               {player.totalClicks}
             </div>
           </motion.div>
+
+          {/* Connection Status */}
+          <ConnectionStatus />
         </div>
       </div>
       

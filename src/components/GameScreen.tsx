@@ -4,6 +4,7 @@ import { useGameStore } from '../store/gameStore';
 import { TigerOutlet } from './TigerOutlet';
 import { GameHUD } from './GameHUD';
 import { soundManager } from '../utils/soundManager';
+import { useGameApi } from '../hooks/useGameApi';
 
 export const GameScreen: React.FC = () => {
   const { 
@@ -12,11 +13,14 @@ export const GameScreen: React.FC = () => {
     endGame, 
     triggerWarning, 
     triggerShock,
-    player 
+    player,
+    submitGameToServer
   } = useGameStore();
   
+  const { isAuthenticated } = useGameApi();
   const [gameTime, setGameTime] = useState(0);
   const [showGameOver, setShowGameOver] = useState(false);
+  const [isSavingToServer, setIsSavingToServer] = useState(false);
 
   // Game timer
   useEffect(() => {
@@ -95,9 +99,33 @@ export const GameScreen: React.FC = () => {
     }
   }, [gameTime]);
 
-  const handleEndGame = () => {
+  const handleEndGame = async () => {
     setShowGameOver(false);
     setGameTime(0);
+    
+    // Сохраняем результаты на сервер, если пользователь аутентифицирован
+    if (isAuthenticated && gameState.score > 0) {
+      setIsSavingToServer(true);
+      
+      try {
+        // Обновляем время игры в store перед отправкой
+        const gameStore = useGameStore.getState();
+        gameStore.gameState.gameTime = gameTime * 1000; // конвертируем в миллисекунды
+        
+        const result = await submitGameToServer();
+        
+        if (result.success) {
+          console.log('✅ Игра успешно сохранена на сервер');
+        } else {
+          console.warn('⚠️ Не удалось сохранить игру на сервер:', result.error);
+        }
+      } catch (error) {
+        console.error('❌ Ошибка при сохранении игры:', error);
+      } finally {
+        setIsSavingToServer(false);
+      }
+    }
+    
     endGame();
   };
 
@@ -142,13 +170,38 @@ export const GameScreen: React.FC = () => {
             </div>
           </div>
 
+          {/* Показываем статус сохранения */}
+          {isAuthenticated && gameState.score > 0 && (
+            <div className="mb-4 text-center">
+              {isSavingToServer ? (
+                <div className="text-blue-400 text-sm">
+                  <span className="inline-block animate-spin mr-2">⏳</span>
+                  Сохранение результатов...
+                </div>
+              ) : (
+                <div className="text-green-400 text-sm">
+                  ✅ Результаты будут сохранены на сервер
+                </div>
+              )}
+            </div>
+          )}
+
+          {!isAuthenticated && gameState.score > 0 && (
+            <div className="mb-4 text-center text-yellow-400 text-sm">
+              ⚠️ Результаты сохраняются только локально
+            </div>
+          )}
+
           <motion.button
             onClick={handleEndGame}
-            className="w-full glass-effect p-3 rounded-xl hover:bg-primary-orange/20 transition-colors"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            disabled={isSavingToServer}
+            className="w-full glass-effect p-3 rounded-xl hover:bg-primary-orange/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            whileHover={{ scale: isSavingToServer ? 1 : 1.05 }}
+            whileTap={{ scale: isSavingToServer ? 1 : 0.95 }}
           >
-            <span className="font-bold">Вернуться в меню</span>
+            <span className="font-bold">
+              {isSavingToServer ? 'Сохранение...' : 'Вернуться в меню'}
+            </span>
           </motion.button>
         </motion.div>
       </div>

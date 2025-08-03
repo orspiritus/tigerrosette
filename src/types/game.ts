@@ -124,4 +124,9 @@ export interface GameStore {
   };
   showLevelUpNotification: (level: any, voltsReward: number) => void;
   hideLevelUpNotification: () => void;
+  
+  // API integration methods
+  submitGameToServer: () => Promise<{ success: boolean; error?: string }>;
+  syncWithServer: () => Promise<{ success: boolean; error?: string }>;
+  loadStatsFromServer: () => Promise<{ success: boolean; error?: string }>;
 }

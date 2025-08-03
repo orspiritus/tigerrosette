@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '../store/gameStore';
 import { hapticManager } from '../utils/hapticManager';
@@ -6,11 +6,39 @@ import { ScoreBreakdown } from './ScoreBreakdown';
 import { LevelDisplay } from './LevelDisplay';
 import { HapticSettings } from './HapticSettings';
 import { TelegramUserInfo } from './TelegramUserInfo';
+import { useGameApi } from '../hooks/useGameApi';
 
 export const MainMenu: React.FC = () => {
-  const { startSingleMode, player, addExperience } = useGameStore();
+  const { startSingleMode, player, addExperience, loadStatsFromServer } = useGameStore();
+  const { isAuthenticated } = useGameApi();
   const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
   const [showHapticSettings, setShowHapticSettings] = useState(false);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+
+  // Загружаем статистику с сервера при первом запуске
+  useEffect(() => {
+    const loadServerStats = async () => {
+      if (isAuthenticated && !isLoadingStats) {
+        setIsLoadingStats(true);
+        
+        try {
+          const result = await loadStatsFromServer();
+          
+          if (result.success) {
+            console.log('✅ Статистика загружена с сервера');
+          } else {
+            console.warn('⚠️ Не удалось загрузить статистику с сервера:', result.error);
+          }
+        } catch (error) {
+          console.error('❌ Ошибка при загрузке статистики:', error);
+        } finally {
+          setIsLoadingStats(false);
+        }
+      }
+    };
+
+    loadServerStats();
+  }, [isAuthenticated, loadStatsFromServer, isLoadingStats]);
   
   // Development helper to test level system
   const handleQuickLevelUp = () => {
@@ -51,6 +79,28 @@ export const MainMenu: React.FC = () => {
       >
         <LevelDisplay />
       </motion.div>
+
+      {/* Статус синхронизации */}
+      {isAuthenticated && isLoadingStats && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mb-4 text-center text-blue-400 text-sm"
+        >
+          <span className="inline-block animate-spin mr-2">⏳</span>
+          Синхронизация с сервером...
+        </motion.div>
+      )}
+
+      {!isAuthenticated && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mb-4 text-center text-yellow-400 text-sm"
+        >
+          ⚠️ Игра в автономном режиме
+        </motion.div>
+      )}
 
       {/* Telegram User Info */}
       <motion.div

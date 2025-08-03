@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { GameStore, GameState, Player, SingleModeState, Achievement, ScoreData, SoundConfig } from '../types/game';
 import { calculateLevel, getExperienceToNextLevel, EXPERIENCE_REWARDS } from '../utils/levelSystem';
+import { apiClient } from '../utils/apiClient';
 
 // Default states
 const defaultGameState: GameState = {
@@ -391,5 +392,151 @@ export const useGameStore = create<GameStore>((set, get) => ({
         voltsReward: 0
       }
     });
+  },
+
+  // API integration methods
+  submitGameToServer: async () => {
+    const state = get();
+    
+    // Проверяем, аутентифицирован ли пользователь
+    if (!apiClient.isAuthenticated()) {
+      console.warn('User not authenticated, skipping server submission');
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    try {
+      // Подготавливаем данные для отправки
+      const gameData = {
+        score: state.gameState.score,
+        level: getDifficultyLevel(state.singleMode.difficulty),
+        timePlayed: Math.floor(state.gameState.gameTime / 1000), // в секундах
+      };
+
+      console.log('Submitting game data to server:', gameData);
+
+      const response = await apiClient.submitScore(gameData);
+
+      if (response.error) {
+        console.error('Failed to submit score:', response.error);
+        return { success: false, error: response.error };
+      }
+
+      if (response.data) {
+        // Обновляем локальное состояние данными с сервера
+        const serverData = response.data;
+        
+        set({
+          player: {
+            ...state.player,
+            volts: serverData.totalVolts,
+            experience: serverData.totalExperience,
+            level: serverData.newLevel
+          }
+        });
+
+        // Показываем уведомление о повышении уровня, если было
+        if (serverData.leveledUp) {
+          const { showLevelUpNotification } = get();
+          showLevelUpNotification(
+            { level: serverData.newLevel }, 
+            serverData.levelUpReward
+          );
+        }
+
+        console.log('Successfully submitted score and synced with server');
+        return { success: true };
+      }
+
+      return { success: true };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Error submitting game to server:', errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  },
+
+  syncWithServer: async () => {
+    if (!apiClient.isAuthenticated()) {
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    try {
+      const response = await apiClient.getUserStats();
+
+      if (response.error) {
+        return { success: false, error: response.error };
+      }
+
+      if (response.data) {
+        const serverData = response.data;
+        
+        // Обновляем локальное состояние данными с сервера
+        set({
+          player: {
+            ...get().player,
+            volts: serverData.totalVolts,
+            experience: serverData.totalExperience,
+            level: serverData.level
+          }
+        });
+
+        console.log('Successfully synced with server');
+        return { success: true };
+      }
+
+      return { success: true };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Error syncing with server:', errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  },
+
+  loadStatsFromServer: async () => {
+    if (!apiClient.isAuthenticated()) {
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    try {
+      const response = await apiClient.getUserStats();
+
+      if (response.error) {
+        return { success: false, error: response.error };
+      }
+
+      if (response.data) {
+        const serverData = response.data;
+        
+        // Полностью загружаем статистику с сервера
+        set({
+          player: {
+            ...get().player,
+            volts: serverData.totalVolts,
+            experience: serverData.totalExperience,
+            level: serverData.level
+          }
+        });
+
+        console.log('Successfully loaded stats from server');
+        return { success: true };
+      }
+
+      return { success: true };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Error loading stats from server:', errorMessage);
+      return { success: false, error: errorMessage };
+    }
   }
 }));
+
+// Вспомогательная функция для преобразования сложности в числовой уровень
+function getDifficultyLevel(difficulty: SingleModeState['difficulty']): number {
+  switch (difficulty) {
+    case 'easy': return 1;
+    case 'medium': return 2;
+    case 'hard': return 3;
+    case 'extreme': return 4;
+    default: return 1;
+  }
+}
