@@ -29,6 +29,18 @@ dist-ssr
 .env.development.local
 .env.test.local
 .env.production.local
+.env.development
+.env.test
+.env.production
+*.env
+
+# Secrets и API ключи
+config/secrets.*
+config/keys.*
+secrets/
+keys/
+api-keys.json
+telegram-config.json
 
 # OS generated files
 .DS_Store
@@ -95,8 +107,46 @@ coverage/
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
 
+# Backend specific
+backend/dist/
+backend/logs/
+backend/uploads/
+backend/*.db
+backend/*.sqlite*
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+prisma/migrations/.migration_lock
+
 # Telegram bot tokens and secrets
 *.pem
 .env.production
+
+# Python environment (если используется)
+.venv/
+.env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# JWT и криптографические ключи
+private.key
+public.key
+jwt.secret
+*.crt
+*.csr
+
+# Deployment файлы с секретами
+deploy-secrets.sh
+production-deploy.js
+docker-compose.prod.yml
+
 # Ignore specific files and directories
-Project_Describe
+Project_Descrybe/
+Media/
+*.backup
+*.bak
+*.old
