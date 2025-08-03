@@ -1,0 +1,227 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String   @id @default(cuid())
+  telegramId          BigInt   @unique
+  username            String?
+  firstName           String
+  lastName            String?
+  level               Int      @default(1)
+  totalExperience     Int      @default(0)
+  totalVolts          Int      @default(0)
+  premiumVolts        Int      @default(0)
+  energy              Int      @default(100)
+  maxEnergy           Int      @default(100)
+  energyLastRefilled  DateTime @default(now())
+  totalClicks         Int      @default(0)
+  registrationDate    DateTime @default(now())
+  lastActiveDate      DateTime @default(now())
+  lastActive          DateTime @default(now())
+  joinedAt            DateTime @default(now())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relations
+  achievements    UserAchievement[]
+  statistics      UserStatistics?
+  gameSessions    GameSession[]
+  createdRooms    MultiplayerRoom[] @relation("RoomCreator")
+  roomParticipants RoomParticipant[]
+  friends1        Friendship[]      @relation("User1")
+  friends2        Friendship[]      @relation("User2")
+  purchases       Purchase[]
+  referrals       Referral[]        @relation("Referrer")
+  referredBy      Referral[]        @relation("Referee")
+
+  @@map("users")
+}
+
+model UserStatistics {
+  id                  String @id @default(cuid())
+  userId              String @unique
+  gamesPlayed         Int    @default(0)
+  totalPlayTime       Int    @default(0) // in seconds
+  averageSessionTime  Int    @default(0) // in seconds
+  bestStreak          Int    @default(0)
+  totalShocks         Int    @default(0)
+  successRate         Float  @default(0.0)
+  favoriteDifficulty  String @default("easy")
+  multiplayerWins     Int    @default(0)
+  multiplayerLosses   Int    @default(0)
+  eloRating           Int    @default(1000)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_statistics")
+}
+
+model Achievement {
+  id          String @id @default(cuid())
+  name        String @unique
+  description String
+  icon        String
+  requirement Int
+  reward      Int
+  category    String
+  createdAt   DateTime @default(now())
+
+  userAchievements UserAchievement[]
+
+  @@map("achievements")
+}
+
+model UserAchievement {
+  id            String   @id @default(cuid())
+  userId        String
+  achievementId String
+  progress      Int      @default(0)
+  completed     Boolean  @default(false)
+  unlockedAt    DateTime?
+  createdAt     DateTime @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@map("user_achievements")
+}
+
+model GameSession {
+  id               String   @id @default(cuid())
+  userId           String
+  score            Int
+  level            Int      // Game difficulty level
+  experienceGained Int      @default(0)
+  voltsGained      Int      @default(0)
+  energyUsed       Int      @default(1)
+  timePlayed       Int      // in seconds
+  duration         Int      // in seconds
+  clicks           Int
+  shocks           Int
+  difficulty       String
+  isMultiplayer    Boolean  @default(false)
+  roomId           String?
+  playedAt         DateTime @default(now())
+  createdAt        DateTime @default(now())
+
+  user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room MultiplayerRoom? @relation(fields: [roomId], references: [id])
+
+  @@map("game_sessions")
+}
+
+model MultiplayerRoom {
+  id             String    @id @default(cuid())
+  name           String
+  maxPlayers     Int       @default(10)
+  currentPlayers Int       @default(0)
+  status         String    @default("waiting") // waiting, playing, finished
+  gameMode       String    @default("quick_match")
+  difficulty     String    @default("medium")
+  duration       Int       @default(60) // in seconds
+  createdBy      String
+  createdAt      DateTime  @default(now())
+  startedAt      DateTime?
+  finishedAt     DateTime?
+
+  creator      User                @relation("RoomCreator", fields: [createdBy], references: [id])
+  participants RoomParticipant[]
+  gameSessions GameSession[]
+
+  @@map("multiplayer_rooms")
+}
+
+model RoomParticipant {
+  id         String    @id @default(cuid())
+  roomId     String
+  userId     String
+  joinedAt   DateTime  @default(now())
+  finalScore Int?
+  finalRank  Int?
+  leftAt     DateTime?
+
+  room MultiplayerRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@map("room_participants")
+}
+
+model Friendship {
+  id        String   @id @default(cuid())
+  user1Id   String
+  user2Id   String
+  status    String   @default("pending") // pending, accepted, blocked
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user1 User @relation("User1", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2 User @relation("User2", fields: [user2Id], references: [id], onDelete: Cascade)
+
+  @@unique([user1Id, user2Id])
+  @@map("friendships")
+}
+
+model Leaderboard {
+  id        String   @id @default(cuid())
+  type      String   // daily, weekly, monthly, all_time
+  period    String   // 2024-01, 2024-W01, 2024-01-01
+  data      String   // JSON string of leaderboard entries
+  updatedAt DateTime @updatedAt
+
+  @@unique([type, period])
+  @@map("leaderboards")
+}
+
+model Purchase {
+  id              String   @id @default(cuid())
+  userId          String
+  itemType        String   // skin, theme, powerup, boost, energy, premium_volts
+  itemId          String
+  price           String   // JSON string: { volts?: number, premiumVolts?: number, realMoney?: {...} }
+  paymentMethod   String   // telegram_stars, ton, stripe, free
+  paymentStatus   String   @default("pending") // pending, completed, failed, refunded
+  transactionId   String?
+  createdAt       DateTime @default(now())
+  completedAt     DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("purchases")
+}
+
+model Referral {
+  id           String   @id @default(cuid())
+  referrerId   String
+  refereeId    String
+  referralCode String   @unique
+  reward       String   // JSON string: { volts: number, premiumVolts?: number }
+  claimed      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  claimedAt    DateTime?
+
+  referrer User @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referee  User @relation("Referee", fields: [refereeId], references: [id], onDelete: Cascade)
+
+  @@map("referrals")
+}
+
+model AnalyticsEvent {
+  id         String   @id @default(cuid())
+  userId     String?
+  event      String
+  properties String   // JSON string
+  timestamp  DateTime @default(now())
+
+  @@map("analytics_events")
+}
