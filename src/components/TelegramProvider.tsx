@@ -38,6 +38,10 @@ export const TelegramProvider: React.FC<TelegramProviderProps> = ({ children }) 
     if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
       const tgWebApp = window.Telegram.WebApp as TelegramWebApp;
       
+      // Инициализация WebApp
+      tgWebApp.ready();
+      tgWebApp.expand();
+      
       setWebApp(tgWebApp);
       setIsInTelegram(true);
       setPlatform(tgWebApp.platform || 'unknown');
@@ -46,7 +50,17 @@ export const TelegramProvider: React.FC<TelegramProviderProps> = ({ children }) 
       // Получение информации о пользователе
       if (tgWebApp.initDataUnsafe?.user) {
         setUser(tgWebApp.initDataUnsafe.user);
+        console.log('Telegram user:', tgWebApp.initDataUnsafe.user);
       }
+      
+      // Настройка интерфейса
+      tgWebApp.setHeaderColor('#000000');
+      tgWebApp.setBackgroundColor('#000000');
+      
+      // Отключаем стандартную кнопку закрытия
+      tgWebApp.disableClosingConfirmation();
+      
+      console.log('Telegram WebApp initialized successfully');
 
       // Инициализация
       tgWebApp.ready();

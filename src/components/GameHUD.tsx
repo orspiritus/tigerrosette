@@ -4,7 +4,7 @@ import { useGameStore } from '../store/gameStore';
 import { ConnectionStatus } from './ConnectionStatus';
 
 export const GameHUD: React.FC = () => {
-  const { player, gameState, singleMode } = useGameStore();
+  const { player, gameState, singleMode, aiElectrician, repairAIElectrician } = useGameStore();
 
   return (
     <div className="fixed top-0 left-0 right-0 z-10 bg-black/20 backdrop-blur-sm border-b border-white/10">
@@ -102,6 +102,54 @@ export const GameHUD: React.FC = () => {
           <motion.div 
             className="glass-effect px-4 py-2"
             whileHover={{ scale: 1.05 }}
+            animate={{
+              boxShadow: singleMode.dangerLevel > 80 ? '0 0 20px #ff4444' :
+                        singleMode.dangerLevel > 60 ? '0 0 15px #ff8800' :
+                        singleMode.dangerLevel > 40 ? '0 0 10px #ffaa00' :
+                        '0 0 5px rgba(255,255,255,0.2)'
+            }}
+          >
+            <div className="text-xs text-gray-300">ОПАСНОСТЬ</div>
+            <div className={`text-sm font-bold ${
+              singleMode.dangerLevel > 80 ? 'text-red-400' :
+              singleMode.dangerLevel > 60 ? 'text-orange-400' :
+              singleMode.dangerLevel > 40 ? 'text-yellow-400' :
+              'text-green-400'
+            }`}>
+              {singleMode.dangerLevel}%
+            </div>
+          </motion.div>
+
+          {/* AI Electrician Status */}
+          <motion.div 
+            className="glass-effect px-4 py-2"
+            whileHover={{ scale: 1.05 }}
+            animate={{
+              boxShadow: singleMode.isDischarging ? '0 0 20px #ff0000' :
+                        singleMode.warningSignsActive ? '0 0 15px #ff8800' :
+                        singleMode.aiElectricianActive ? '0 0 10px #00ffff' :
+                        '0 0 5px rgba(255,255,255,0.2)',
+              scale: singleMode.isDischarging ? [1, 1.05, 1] : 1
+            }}
+            transition={{ duration: 0.3, repeat: singleMode.isDischarging ? Infinity : 0 }}
+          >
+            <div className="text-xs text-gray-300">ИИ ЭЛЕКТРИК</div>
+            <div className={`text-sm font-bold ${
+              singleMode.isDischarging ? 'text-red-400' :
+              singleMode.warningSignsActive ? 'text-orange-400' :
+              singleMode.aiElectricianActive ? 'text-cyan-400' :
+              'text-gray-500'
+            }`}>
+              {singleMode.isDischarging ? '⚡ РАЗРЯД!' :
+               singleMode.warningSignsActive ? '⚠️ ВНИМАНИЕ!' :
+               singleMode.aiElectricianActive ? '🤖 АКТИВЕН' :
+               '😴 СПИТ'}
+            </div>
+          </motion.div>
+
+          <motion.div 
+            className="glass-effect px-4 py-2"
+            whileHover={{ scale: 1.05 }}
           >
             <div className="text-xs text-gray-300">НАЖАТИЙ</div>
             <div className="text-lg font-bold text-accent-blue">
@@ -142,6 +190,157 @@ export const GameHUD: React.FC = () => {
           transition={{ duration: 0.3 }}
         >
           🔥 УРОВЕНЬ ОПАСНОСТИ: {singleMode.dangerLevel}% 🔥
+        </motion.div>
+      )}
+      
+      {/* AI Electrician Detailed Status */}
+      {singleMode.aiElectricianActive && (
+        <motion.div
+          className="bg-black/40 border-t border-white/10 px-4 py-3"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              {/* AI Electrician Name and Message */}
+              <div className="text-sm">
+                <div className="text-cyan-400 font-bold">⚡ {aiElectrician.name}</div>
+                <div className={`text-xs ${
+                  aiElectrician.mood === 'confident' ? 'text-green-400' :
+                  aiElectrician.mood === 'frustrated' ? 'text-orange-400' :
+                  aiElectrician.mood === 'tired' ? 'text-yellow-400' :
+                  aiElectrician.mood === 'broken' ? 'text-red-400' :
+                  'text-red-600'
+                }`}>
+                  {aiElectrician.lastMessage}
+                </div>
+              </div>
+
+              {/* Energy Bar */}
+              <div className="flex flex-col items-center">
+                <div className="text-xs text-gray-300 mb-1">ЭНЕРГИЯ</div>
+                <div className="w-20 h-2 bg-gray-700 rounded-full overflow-hidden">
+                  <motion.div
+                    className={`h-full rounded-full ${
+                      aiElectrician.energy > 60 ? 'bg-green-500' :
+                      aiElectrician.energy > 30 ? 'bg-yellow-500' :
+                      'bg-red-500'
+                    }`}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${aiElectrician.energy}%` }}
+                    transition={{ duration: 0.5 }}
+                  />
+                </div>
+                <div className="text-xs text-white">{Math.round(aiElectrician.energy)}%</div>
+              </div>
+
+              {/* Equipment Status */}
+              <div className="flex space-x-2">
+                <div className="text-center">
+                  <div className="text-xs text-gray-300">БАТ</div>
+                  <div className={`text-xs font-bold ${
+                    aiElectrician.equipment.battery > 70 ? 'text-green-400' :
+                    aiElectrician.equipment.battery > 30 ? 'text-yellow-400' :
+                    'text-red-400'
+                  }`}>
+                    {Math.round(aiElectrician.equipment.battery)}%
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-gray-300">КОН</div>
+                  <div className={`text-xs font-bold ${
+                    aiElectrician.equipment.capacitor > 70 ? 'text-green-400' :
+                    aiElectrician.equipment.capacitor > 30 ? 'text-yellow-400' :
+                    'text-red-400'
+                  }`}>
+                    {Math.round(aiElectrician.equipment.capacitor)}%
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-gray-300">ПРВ</div>
+                  <div className={`text-xs font-bold ${
+                    aiElectrician.equipment.wires > 70 ? 'text-green-400' :
+                    aiElectrician.equipment.wires > 30 ? 'text-yellow-400' :
+                    'text-red-400'
+                  }`}>
+                    {Math.round(aiElectrician.equipment.wires)}%
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-gray-300">ГЕН</div>
+                  <div className={`text-xs font-bold ${
+                    aiElectrician.equipment.generator > 70 ? 'text-green-400' :
+                    aiElectrician.equipment.generator > 30 ? 'text-yellow-400' :
+                    'text-red-400'
+                  }`}>
+                    {Math.round(aiElectrician.equipment.generator)}%
+                  </div>
+                </div>
+              </div>
+
+              {/* Working Efficiency */}
+              <div className="text-center">
+                <div className="text-xs text-gray-300">ЭФФЕКТ</div>
+                <div className={`text-sm font-bold ${
+                  aiElectrician.workingEfficiency > 80 ? 'text-green-400' :
+                  aiElectrician.workingEfficiency > 50 ? 'text-yellow-400' :
+                  'text-red-400'
+                }`}>
+                  {Math.round(aiElectrician.workingEfficiency)}%
+                </div>
+              </div>
+
+              {/* Success/Failure Stats */}
+              <div className="text-center">
+                <div className="text-xs text-gray-300">УСПЕХ/НЕУДАЧ</div>
+                <div className="text-xs text-green-400">{aiElectrician.successfulDischarges}</div>
+                <div className="text-xs text-red-400">{aiElectrician.failuresCount}</div>
+              </div>
+
+              {/* Working Status */}
+              <div className="text-center">
+                <div className={`text-sm font-bold ${
+                  aiElectrician.canWork ? 'text-green-400' : 'text-red-400'
+                }`}>
+                  {aiElectrician.canWork ? '✅ РАБОТАЕТ' : '❌ НЕ РАБОТАЕТ'}
+                </div>
+              </div>
+            </div>
+
+            {/* Repair Controls */}
+            <div className="flex space-x-2 mt-2">
+              <motion.button
+                className="glass-effect px-3 py-1 text-xs text-green-400 hover:text-green-300 disabled:text-gray-500 disabled:cursor-not-allowed"
+                onClick={() => {
+                  if (player.volts >= 50) {
+                    repairAIElectrician('energy');
+                    useGameStore.getState().updatePlayerStats({ volts: player.volts - 50 });
+                  }
+                }}
+                disabled={player.volts < 50 || aiElectrician.energy >= 90}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                ⚡ Зарядить (50⚡)
+              </motion.button>
+              
+              <motion.button
+                className="glass-effect px-3 py-1 text-xs text-blue-400 hover:text-blue-300 disabled:text-gray-500 disabled:cursor-not-allowed"
+                onClick={() => {
+                  if (player.volts >= 100) {
+                    repairAIElectrician('equipment');
+                    useGameStore.getState().updatePlayerStats({ volts: player.volts - 100 });
+                  }
+                }}
+                disabled={player.volts < 100 || Object.values(aiElectrician.equipment).every(val => val >= 95)}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                🔧 Починить (100⚡)
+              </motion.button>
+            </div>
+          </div>
         </motion.div>
       )}
     </div>

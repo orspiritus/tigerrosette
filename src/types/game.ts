@@ -23,6 +23,28 @@ export interface Player {
   survivalTime: number;
 }
 
+// AI Electrician System
+export interface AIElectrician {
+  name: string; // Имя электрика
+  energy: number; // Энергия (0-100)
+  maxEnergy: number; // Максимальная энергия
+  equipment: {
+    battery: number; // Состояние аккумулятора (0-100)
+    capacitor: number; // Состояние конденсатора (0-100)
+    wires: number; // Состояние проводов (0-100)
+    generator: number; // Состояние генератора (0-100)
+  };
+  mood: 'confident' | 'frustrated' | 'tired' | 'broken' | 'angry'; // Настроение
+  experience: number; // Опыт (влияет на эффективность)
+  isActive: boolean; // Активен ли
+  lastMessage: string; // Последнее сообщение
+  messageTime: number; // Время последнего сообщения
+  failuresCount: number; // Количество неудач
+  successfulDischarges: number; // Успешные разряды
+  workingEfficiency: number; // Эффективность работы (0-100%)
+  canWork: boolean; // Может ли работать (зависит от энергии и оборудования)
+}
+
 // Single Mode Types
 export interface SingleModeState {
   difficulty: 'easy' | 'medium' | 'hard' | 'extreme';
@@ -33,6 +55,13 @@ export interface SingleModeState {
   lastClickTime: number;
   dangerLevel: number; // Уровень опасности (0-100%)
   warningSignsActive: boolean; // Активны ли предупреждающие знаки
+  
+  // AI Electrician System
+  aiElectricianActive: boolean; // Активен ли ИИ электрик
+  nextDischargeTime: number; // Время следующего разряда (timestamp)
+  dischargeWarningTime: number; // Время начала предупреждения (timestamp)
+  isDischarging: boolean; // Происходит ли разряд сейчас
+  dischargeDuration: number; // Длительность разряда в мс
 }
 
 export interface ScoreData {
@@ -49,66 +78,47 @@ export interface ShockImpact {
   damage: number; // Урон в очках
   voltsDrained: number; // Потерянные вольты
   duration: number; // Длительность эффекта в мс
-  severity: 'mild' | 'moderate' | 'severe' | 'critical'; // Тяжесть поражения
-  luckHideDuration: number; // Время скрытия индикатора удачи в мс
-}
-
-// AI Electrician Configuration
-export interface AIElectricianConfig {
-  shockProbability: number;
-  warningTime: number;
-  safeWindow: number;
-  minInterval: number;
-  maxInterval: number;
-}
-
-// Visual Effects
-export interface SparkEffect {
-  id: string;
-  x: number;
-  y: number;
-  intensity: 'low' | 'medium' | 'high' | 'extreme';
-  duration: number;
-  color: string;
-}
-
-export interface ElectricEffect {
-  isActive: boolean;
-  intensity: number;
-  duration: number;
-  pattern: 'single' | 'burst' | 'continuous';
+  severity: 'mild' | 'moderate' | 'severe' | 'critical'; // Уровень серьезности
+  luckHideDuration: number; // Время скрытия индикатора удачи
 }
 
 // Achievements
 export interface Achievement {
   id: string;
-  name: string;
+  title: string;
   description: string;
   icon: string;
   requirement: number;
   progress: number;
   completed: boolean;
   reward: number;
-  category: 'streak' | 'survival' | 'risk' | 'special';
+  category: 'special' | 'streak' | 'risk' | 'survival';
 }
 
-// Sound Effects
-export type SoundType = 
-  | 'click' 
-  | 'spark' 
-  | 'shock' 
-  | 'warning' 
-  | 'success' 
-  | 'achievement' 
-  | 'background';
-
+// Audio
 export interface SoundConfig {
   volume: number;
   enabled: boolean;
   backgroundMusicEnabled: boolean;
 }
 
-// Store Types
+// API Types  
+export interface SparkEffect {
+  id: string;
+  x: number;
+  y: number;
+  intensity: 'low' | 'medium' | 'high' | 'extreme';
+  timestamp: number;
+  duration: number;
+  color: string;
+}
+
+export interface GameMode {
+  name: string;
+  description: string;
+  icon: string;
+}
+
 export interface GameStore {
   // State
   gameState: GameState;
@@ -119,6 +129,7 @@ export interface GameStore {
   showElectricSparks: boolean;
   sparksIntensity: 'low' | 'medium' | 'high' | 'extreme';
   showScreenShake: boolean;
+  aiElectrician: AIElectrician; // ИИ электрик
   levelUpNotification: {
     isVisible: boolean;
     level: any | null;
@@ -132,6 +143,17 @@ export interface GameStore {
   calculateShockImpact: (volts: number) => ShockImpact;
   triggerShock: () => void;
   updateLuckCoefficient: () => void;
+  
+  // AI Electrician System
+  startAIElectrician: () => void;
+  stopAIElectrician: () => void;
+  scheduleNextDischarge: () => void;
+  checkForDischarge: () => void;
+  updateAIElectrician: () => void;
+  damageAIElectrician: (damageType: 'energy' | 'equipment', amount?: number) => void;
+  repairAIElectrician: (repairType: 'energy' | 'equipment') => void;
+  getAIElectricianMessage: () => string;
+  
   endGame: () => void;
   unlockAchievement: (achievementId: string) => void;
   updatePlayerStats: (stats: Partial<Player>) => void;

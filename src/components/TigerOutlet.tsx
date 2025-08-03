@@ -57,6 +57,7 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
       x: Math.random() * 200 - 100, // Random position around center
       y: Math.random() * 200 - 100,
       intensity,
+      timestamp: Date.now(),
       duration: 300 + Math.random() * 200,
       color: intensity === 'extreme' ? '#E8FF00' : 
              intensity === 'high' ? '#00D4FF' : 
@@ -92,15 +93,8 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
     setIsPressed(true);
     clickOutlet();
 
-    // Determine if shock occurs (simplified logic for now)
-    const shockChance = {
-      easy: 0.15,
-      medium: 0.25,
-      hard: 0.35,
-      extreme: 0.50
-    }[singleMode.difficulty];
-
-    const isShocked = Math.random() < shockChance;
+    // Проверяем, происходит ли разряд ИИ электрика в момент клика
+    const isShocked = singleMode.isDischarging;
     
     if (isShocked) {
       // Активируем эффект электрического разряда
