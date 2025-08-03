@@ -98,3 +98,5 @@ coverage/
 # Telegram bot tokens and secrets
 *.pem
 .env.production
+# Ignore specific files and directories
+Project_Describe
