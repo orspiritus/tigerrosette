@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { GameStore, GameState, Player, SingleModeState, Achievement, ScoreData, SoundConfig } from '../types/game';
+import { GameStore, GameState, Player, SingleModeState, Achievement, ScoreData, SoundConfig, ShockImpact } from '../types/game';
 import { calculateLevel, getExperienceToNextLevel, EXPERIENCE_REWARDS } from '../utils/levelSystem';
 import { apiClient } from '../utils/apiClient';
 
@@ -20,6 +20,11 @@ const defaultPlayer: Player = {
   experience: 0,
   streak: 0,
   totalClicks: 0,
+  successfulClicks: 0,
+  shockedClicks: 0,
+  luckCoefficient: 50, // Начинаем с 50%
+  luckIndicatorHidden: false,
+  luckHiddenUntil: 0,
   survivalTime: 0
 };
 
@@ -30,8 +35,8 @@ const defaultSingleMode: SingleModeState = {
   streakCount: 0,
   timeInSafeZone: 0,
   lastClickTime: 0,
-  warningActive: false,
-  shockActive: false
+  dangerLevel: 0,
+  warningSignsActive: false
 };
 
 const defaultSounds: SoundConfig = {
@@ -106,6 +111,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   singleMode: defaultSingleMode,
   achievements: defaultAchievements,
   sounds: defaultSounds,
+  showElectricSparks: false,
+  sparksIntensity: 'medium',
+  showScreenShake: false,
   levelUpNotification: {
     isVisible: false,
     level: null,
@@ -140,6 +148,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
     else if (timeSinceLastClick < 2000) currentRisk = 'high';
     else if (timeSinceLastClick < 3000) currentRisk = 'medium';
 
+    // Calculate danger level (affects warning signs)
+    const dangerLevel = Math.min(100, 
+      (state.singleMode.streakCount * 2) + // Больше серия = больше опасность
+      (currentRisk === 'extreme' ? 40 : 
+       currentRisk === 'high' ? 25 : 
+       currentRisk === 'medium' ? 15 : 5) + // Риск влияет на опасность
+      (state.player.luckCoefficient < 30 ? 20 : 0) // Низкая удача = больше опасность
+    );
+
+    // Activate warning signs if danger is high
+    const warningSignsActive = dangerLevel > 60;
+
     // Update click stats
     set({
       player: {
@@ -149,9 +169,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       singleMode: {
         ...state.singleMode,
         lastClickTime: now,
-        currentRisk
+        currentRisk,
+        dangerLevel,
+        warningSignsActive
       }
     });
+
+    // Update luck coefficient and restore indicator if needed
+    get().updateLuckCoefficient();
   },
 
   updateScore: (scoreData: ScoreData) => {
@@ -188,6 +213,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       experienceGained = EXPERIENCE_REWARDS.SHOCK_SURVIVAL;
     }
     
+    // Update success/shock statistics and calculate luck coefficient
+    const newSuccessfulClicks = isSuccess ? state.player.successfulClicks + 1 : state.player.successfulClicks;
+    const newShockedClicks = !isSuccess ? state.player.shockedClicks + 1 : state.player.shockedClicks;
+    const totalAttempts = newSuccessfulClicks + newShockedClicks;
+    const newLuckCoefficient = totalAttempts > 0 ? Math.round((newSuccessfulClicks / totalAttempts) * 100) : 50;
+    
     set({
       gameState: {
         ...state.gameState,
@@ -196,7 +227,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       player: {
         ...state.player,
         volts: newVolts,
-        streak: newStreak
+        streak: newStreak,
+        successfulClicks: newSuccessfulClicks,
+        shockedClicks: newShockedClicks,
+        luckCoefficient: newLuckCoefficient
       },
       singleMode: {
         ...state.singleMode,
@@ -218,79 +252,88 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (newStreak === 25) unlockAchievement('survivor_25');
   },
 
-  triggerShock: () => {
-    const state = get();
-    let newScore = state.gameState.score;
-    let newVolts = state.player.volts;
-    let penaltyMessage = '';
+  // Рассчитывает урон от удара током на основе накопленных вольт
+  calculateShockImpact: (volts: number): ShockImpact => {
+    let damage: number;
+    let severity: 'mild' | 'moderate' | 'severe' | 'critical';
+    let duration: number;
+    let luckHideDuration: number;
 
-    // Calculate penalties based on player level
-    const playerLevel = calculateLevel(state.player.experience).level;
-    
-    if (playerLevel >= 4) {
-      // С 4-го уровня: отнимаем напряжение от очков
-      const voltsPenalty = Math.min(state.player.volts, Math.floor(state.gameState.score * 0.1)); // 10% от очков или все вольты
-      newScore = Math.max(0, state.gameState.score - voltsPenalty);
-      penaltyMessage = `Потеряно ${voltsPenalty} очков (напряжение)!`;
-    } else if (playerLevel >= 3) {
-      // С 3-го уровня: отнимаем очки
-      const scorePenalty = Math.floor(state.gameState.score * 0.05); // 5% от текущих очков
-      newScore = Math.max(0, state.gameState.score - scorePenalty);
-      penaltyMessage = `Потеряно ${scorePenalty} очков!`;
+    if (volts < 50) {
+      damage = Math.floor(volts * 0.1) + 1; // 1-5 очков
+      severity = 'mild';
+      duration = 1000;
+      luckHideDuration = 2000;
+    } else if (volts < 150) {
+      damage = Math.floor(volts * 0.15) + 5; // 5-27 очков
+      severity = 'moderate';
+      duration = 1500;
+      luckHideDuration = 3000;
+    } else if (volts < 300) {
+      damage = Math.floor(volts * 0.2) + 10; // 10-70 очков
+      severity = 'severe';
+      duration = 2000;
+      luckHideDuration = 5000;
+    } else {
+      damage = Math.floor(volts * 0.25) + 20; // 20+ очков
+      severity = 'critical';
+      duration = 3000;
+      luckHideDuration = 8000;
     }
 
-    set({
-      gameState: {
-        ...state.gameState,
-        score: newScore
-      },
-      singleMode: {
-        ...state.singleMode,
-        shockActive: true,
-        streakCount: 0
-      },
-      player: {
-        ...state.player,
-        streak: 0,
-        volts: newVolts
-      }
-    });
+    const voltsDrained = Math.floor(volts * 0.7); // Теряем 70% вольт
 
-    // Show penalty message if there was one
-    if (penaltyMessage && typeof window !== 'undefined') {
-      // Store penalty message for UI to show
-      (window as any).lastPenaltyMessage = penaltyMessage;
-    }
-
-    // Reset shock after animation
-    setTimeout(() => {
-      set({
-        singleMode: {
-          ...get().singleMode,
-          shockActive: false
-        }
-      });
-    }, 500);
+    return {
+      damage,
+      voltsDrained,
+      duration,
+      severity,
+      luckHideDuration
+    };
   },
 
-  triggerWarning: () => {
+  triggerShock: () => {
     const state = get();
+    if (!state.gameState.isPlaying) return;
+
+    // Рассчитываем урон на основе накопленных вольт
+    const shockImpact = state.calculateShockImpact(state.player.volts);
+    
     set({
+      player: {
+        ...state.player,
+        volts: Math.max(0, state.player.volts - shockImpact.voltsDrained),
+        shockedClicks: state.player.shockedClicks + 1,
+        totalClicks: state.player.totalClicks + 1,
+        streak: 0,
+        luckIndicatorHidden: true,
+        luckHiddenUntil: Date.now() + shockImpact.luckHideDuration
+      },
+      showElectricSparks: true,
+      sparksIntensity: shockImpact.severity === 'critical' ? 'extreme' : 
+                      shockImpact.severity === 'severe' ? 'high' :
+                      shockImpact.severity === 'moderate' ? 'medium' : 'low',
+      showScreenShake: true,
+      gameState: {
+        ...state.gameState,
+        score: Math.max(0, state.gameState.score - shockImpact.damage)
+      },
       singleMode: {
         ...state.singleMode,
-        warningActive: true
+        streakCount: 0
       }
     });
 
-    // Reset warning after timeout
+    // Отключаем эффекты после анимации
     setTimeout(() => {
       set({
-        singleMode: {
-          ...get().singleMode,
-          warningActive: false
-        }
+        showElectricSparks: false,
+        showScreenShake: false
       });
-    }, 2000);
+    }, shockImpact.duration);
+
+    // Обновляем коэффициент удачи
+    get().updateLuckCoefficient();
   },
 
   endGame: () => {
@@ -390,6 +433,27 @@ export const useGameStore = create<GameStore>((set, get) => ({
         isVisible: false,
         level: null,
         voltsReward: 0
+      }
+    });
+  },
+
+  updateLuckCoefficient: () => {
+    const state = get();
+    const totalAttempts = state.player.totalClicks;
+    const successfulClicks = state.player.successfulClicks;
+    
+    const newLuckCoefficient = totalAttempts > 0 ? 
+      Math.round((successfulClicks / totalAttempts) * 100) : 50;
+    
+    // Проверяем, нужно ли восстанавливать индикатор удачи
+    const shouldRestoreLuckIndicator = state.player.luckIndicatorHidden && 
+                                      Date.now() >= state.player.luckHiddenUntil;
+    
+    set({
+      player: {
+        ...state.player,
+        luckCoefficient: newLuckCoefficient,
+        luckIndicatorHidden: shouldRestoreLuckIndicator ? false : state.player.luckIndicatorHidden
       }
     });
   },

@@ -15,6 +15,11 @@ export interface Player {
   experience: number;
   streak: number;
   totalClicks: number;
+  successfulClicks: number;
+  shockedClicks: number;
+  luckCoefficient: number; // Коэффициент удачи (0-100%)
+  luckIndicatorHidden: boolean; // Скрыт ли индикатор удачи
+  luckHiddenUntil: number; // Время до которого скрыт индикатор (timestamp)
   survivalTime: number;
 }
 
@@ -26,8 +31,8 @@ export interface SingleModeState {
   streakCount: number;
   timeInSafeZone: number;
   lastClickTime: number;
-  warningActive: boolean;
-  shockActive: boolean;
+  dangerLevel: number; // Уровень опасности (0-100%)
+  warningSignsActive: boolean; // Активны ли предупреждающие знаки
 }
 
 export interface ScoreData {
@@ -37,6 +42,15 @@ export interface ScoreData {
   timeBonus: number;
   totalPoints: number;
   reason: string;
+}
+
+// Shock Impact System
+export interface ShockImpact {
+  damage: number; // Урон в очках
+  voltsDrained: number; // Потерянные вольты
+  duration: number; // Длительность эффекта в мс
+  severity: 'mild' | 'moderate' | 'severe' | 'critical'; // Тяжесть поражения
+  luckHideDuration: number; // Время скрытия индикатора удачи в мс
 }
 
 // AI Electrician Configuration
@@ -102,6 +116,9 @@ export interface GameStore {
   singleMode: SingleModeState;
   achievements: Achievement[];
   sounds: SoundConfig;
+  showElectricSparks: boolean;
+  sparksIntensity: 'low' | 'medium' | 'high' | 'extreme';
+  showScreenShake: boolean;
   levelUpNotification: {
     isVisible: boolean;
     level: any | null;
@@ -112,8 +129,9 @@ export interface GameStore {
   startSingleMode: (difficulty: SingleModeState['difficulty']) => void;
   clickOutlet: () => void;
   updateScore: (scoreData: ScoreData) => void;
+  calculateShockImpact: (volts: number) => ShockImpact;
   triggerShock: () => void;
-  triggerWarning: () => void;
+  updateLuckCoefficient: () => void;
   endGame: () => void;
   unlockAchievement: (achievementId: string) => void;
   updatePlayerStats: (stats: Partial<Player>) => void;

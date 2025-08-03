@@ -1,17 +1,19 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../store/gameStore';
 import { SparkEffect } from '../types/game';
 import { soundManager } from '../utils/soundManager';
 import { hapticManager } from '../utils/hapticManager';
 import { ScorePopup } from './ScorePopup';
+import { ElectricSparks } from './ElectricSparks';
 import { useOutletImageAnimation } from '../hooks/useOutletImageAnimation';
 
 interface TigerOutletProps {
   className?: string;
+  onShock?: () => void;
 }
 
-export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '' }) => {
+export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShock }) => {
   const { 
     clickOutlet, 
     singleMode, 
@@ -25,6 +27,7 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '' }) => {
   const [sparks, setSparks] = useState<SparkEffect[]>([]);
   const [isPressed, setIsPressed] = useState(false);
   const [glowIntensity, setGlowIntensity] = useState(1);
+  const [isElectricShockActive, setIsElectricShockActive] = useState(false);
   const [scorePopup, setScorePopup] = useState<{
     visible: boolean;
     score: number;
@@ -72,9 +75,18 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '' }) => {
 
   // Handle outlet click
   const handleClick = useCallback(() => {
-    if (!gameState.isPlaying || singleMode.shockActive) return;
+    if (!gameState.isPlaying) return;
 
-    // Добавляем вибрацию при нажатии
+    // Предупреждающие вибрации в зависимости от уровня опасности
+    if (singleMode.warningSignsActive) {
+      if (singleMode.dangerLevel > 80) {
+        hapticManager.extremeDangerWarning();
+      } else if (singleMode.dangerLevel > 60) {
+        hapticManager.dangerWarning();
+      }
+    }
+
+    // Основная вибрация при нажатии
     hapticManager.outletPress();
 
     setIsPressed(true);
@@ -91,11 +103,14 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '' }) => {
     const isShocked = Math.random() < shockChance;
     
     if (isShocked) {
-      // Shock effect with haptic feedback
-      createSparks('extreme');
+      // Активируем эффект электрического разряда
+      setIsElectricShockActive(true);
       setGlowIntensity(3);
       
-      // Сильная вибрация при поражении током
+      // Trigger screen shake effect
+      onShock?.();
+      
+      // Запускаем вибрацию ТОЛЬКО в момент удара
       hapticManager.electricShock();
       
       // Play shock sound
@@ -103,6 +118,11 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '' }) => {
       
       // Trigger shock with penalties (handled in store)
       triggerShock();
+      
+      // Завершаем эффект разряда через 1 секунду
+      setTimeout(() => {
+        setIsElectricShockActive(false);
+      }, 1000);
       
       // Check for penalty message and show it
       setTimeout(() => {
@@ -180,26 +200,12 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '' }) => {
     }, 200);
   }, [gameState.isPlaying, singleMode, clickOutlet, createSparks, updateScore]);
 
-  // Warning effect when danger is imminent
-  useEffect(() => {
-    if (singleMode.warningActive) {
-      setGlowIntensity(2.5);
-      const interval = setInterval(() => {
-        setGlowIntensity(prev => prev === 2.5 ? 1.5 : 2.5);
-      }, 200);
-
-      return () => clearInterval(interval);
-    } else {
-      setGlowIntensity(1);
-    }
-  }, [singleMode.warningActive]);
-
   return (
     <div className={`relative ${className}`}>
       {/* Main Outlet Button */}
       <motion.button
         onClick={handleClick}
-        disabled={!gameState.isPlaying || singleMode.shockActive}
+        disabled={!gameState.isPlaying}
         className="relative w-64 h-64 rounded-2xl overflow-hidden disabled:opacity-50 bg-gray-800"
         whileTap={{ scale: 0.95 }}
         whileHover={{ scale: 1.05 }}
@@ -240,27 +246,46 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '' }) => {
         <motion.div
           className="absolute inset-0 rounded-2xl"
           animate={{
-            boxShadow: singleMode.warningActive
-              ? '0 0 30px #E8FF00, inset 0 0 30px #E8FF00'
-              : singleMode.shockActive
-              ? '0 0 50px #FF0000, inset 0 0 50px #FF0000'
-              : '0 0 15px #FF6B35, inset 0 0 15px #FF6B35'
+            boxShadow: singleMode.warningSignsActive 
+              ? `0 0 ${30 * glowIntensity}px #FF0000, inset 0 0 ${30 * glowIntensity}px #FF0000`
+              : `0 0 ${15 * glowIntensity}px #FF6B35, inset 0 0 ${15 * glowIntensity}px #FF6B35`
           }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: singleMode.warningSignsActive ? 0.1 : 0.2 }}
         />
 
-        {/* Shock Effect Overlay */}
-        <AnimatePresence>
-          {singleMode.shockActive && (
-            <motion.div
-              className="absolute inset-0 bg-red-500 mix-blend-screen rounded-2xl"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 0.8, 0, 0.6, 0, 0.4, 0] }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.5 }}
-            />
-          )}
-        </AnimatePresence>
+        {/* Danger Level Indicator */}
+        {singleMode.dangerLevel > 50 && (
+          <motion.div
+            className="absolute -top-12 left-1/2 transform -translate-x-1/2"
+            initial={{ opacity: 0, scale: 0 }}
+            animate={{ 
+              opacity: [0.7, 1, 0.7, 1],
+              scale: [0.8, 1.2, 0.8, 1.2]
+            }}
+            transition={{ 
+              duration: 1,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+          >
+            <div className={`px-2 py-1 rounded-full text-xs font-bold ${
+              singleMode.dangerLevel > 80 ? 'bg-red-500 text-white' :
+              singleMode.dangerLevel > 70 ? 'bg-orange-500 text-white' :
+              'bg-yellow-500 text-black'
+            }`}>
+              {singleMode.dangerLevel > 80 ? '🔴 КРИТИЧНО' :
+               singleMode.dangerLevel > 70 ? '🟠 ОПАСНО' :
+               '🟡 РИСК'}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Electric Shock Effects */}
+        <ElectricSparks 
+          isActive={isElectricShockActive}
+          intensity="extreme"
+          onComplete={() => setIsElectricShockActive(false)}
+        />
       </motion.button>
 
       {/* Spark Effects */}

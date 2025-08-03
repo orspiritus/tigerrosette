@@ -61,6 +61,30 @@ export const GameHUD: React.FC = () => {
           <motion.div 
             className="glass-effect px-4 py-2"
             whileHover={{ scale: 1.05 }}
+            animate={{
+              opacity: player.luckIndicatorHidden && Date.now() < player.luckHiddenUntil ? 0.3 : 1
+            }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="text-xs text-gray-300">УДАЧА</div>
+            <div className={`text-sm font-bold ${
+              player.luckIndicatorHidden && Date.now() < player.luckHiddenUntil ? 
+                'text-gray-500' :
+                player.luckCoefficient >= 70 ? 'text-green-400' :
+                player.luckCoefficient >= 50 ? 'text-yellow-400' :
+                player.luckCoefficient >= 30 ? 'text-orange-400' :
+                'text-red-400'
+            }`}>
+              {player.luckIndicatorHidden && Date.now() < player.luckHiddenUntil ? 
+                '???' : 
+                `${player.luckCoefficient}%`
+              }
+            </div>
+          </motion.div>
+
+          <motion.div 
+            className="glass-effect px-4 py-2"
+            whileHover={{ scale: 1.05 }}
           >
             <div className="text-xs text-gray-300">СЛОЖНОСТЬ</div>
             <div className={`text-sm font-bold ${
@@ -91,7 +115,7 @@ export const GameHUD: React.FC = () => {
       </div>
       
       {/* Warning Banner */}
-      {singleMode.warningActive && (
+      {singleMode.warningSignsActive && (
         <motion.div
           className="bg-yellow-500/80 text-black px-4 py-2 text-center font-bold"
           initial={{ opacity: 0, y: -20 }}
@@ -101,7 +125,23 @@ export const GameHUD: React.FC = () => {
           }}
           transition={{ duration: 0.5 }}
         >
-          ⚠️ ВНИМАНИЕ! ГОТОВИТСЯ РАЗРЯД! ⚠️
+          ⚠️ ОПАСНОСТЬ! ВЫСОКИЙ РИСК РАЗРЯДА! ⚠️
+        </motion.div>
+      )}
+
+      {/* Danger Level Indicator */}
+      {singleMode.dangerLevel > 30 && (
+        <motion.div
+          className={`px-4 py-1 text-center text-xs font-semibold ${
+            singleMode.dangerLevel > 70 ? 'bg-red-500/60 text-white' :
+            singleMode.dangerLevel > 50 ? 'bg-orange-500/60 text-white' :
+            'bg-yellow-500/60 text-black'
+          }`}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3 }}
+        >
+          🔥 УРОВЕНЬ ОПАСНОСТИ: {singleMode.dangerLevel}% 🔥
         </motion.div>
       )}
     </div>

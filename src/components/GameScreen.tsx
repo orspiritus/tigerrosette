@@ -1,18 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '../store/gameStore';
 import { TigerOutlet } from './TigerOutlet';
 import { GameHUD } from './GameHUD';
-import { soundManager } from '../utils/soundManager';
 import { useGameApi } from '../hooks/useGameApi';
+import { ScreenShake } from './ScreenShake';
 
 export const GameScreen: React.FC = () => {
   const { 
     gameState, 
     singleMode, 
     endGame, 
-    triggerWarning, 
-    triggerShock,
     player,
     submitGameToServer
   } = useGameStore();
@@ -21,6 +19,15 @@ export const GameScreen: React.FC = () => {
   const [gameTime, setGameTime] = useState(0);
   const [showGameOver, setShowGameOver] = useState(false);
   const [isSavingToServer, setIsSavingToServer] = useState(false);
+  const [isScreenShaking, setIsScreenShaking] = useState(false);
+
+  // Handle screen shake from electric shock
+  const handleShockEffect = useCallback(() => {
+    setIsScreenShaking(true);
+    setTimeout(() => {
+      setIsScreenShaking(false);
+    }, 600); // Match ScreenShake duration
+  }, []);
 
   // Game timer
   useEffect(() => {
@@ -32,64 +39,6 @@ export const GameScreen: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [gameState.isPlaying]);
-
-  // AI Electrician Logic
-  useEffect(() => {
-    if (!gameState.isPlaying) return;
-
-    const difficulty = singleMode.difficulty;
-    const config = {
-      easy: { 
-        shockProbability: 0.15, 
-        warningTime: 2000, 
-        minInterval: 3000, 
-        maxInterval: 8000 
-      },
-      medium: { 
-        shockProbability: 0.25, 
-        warningTime: 1500, 
-        minInterval: 2500, 
-        maxInterval: 6000 
-      },
-      hard: { 
-        shockProbability: 0.35, 
-        warningTime: 1000, 
-        minInterval: 2000, 
-        maxInterval: 5000 
-      },
-      extreme: { 
-        shockProbability: 0.50, 
-        warningTime: 500, 
-        minInterval: 1000, 
-        maxInterval: 3000 
-      }
-    }[difficulty];
-
-    const scheduleNext = () => {
-      const delay = Math.random() * (config.maxInterval - config.minInterval) + config.minInterval;
-      
-      setTimeout(() => {
-        if (!gameState.isPlaying) return;
-
-        // Trigger warning
-        triggerWarning();
-        soundManager.generateWarningSound();
-        
-        // Schedule potential shock
-        setTimeout(() => {
-          if (!gameState.isPlaying) return;
-          
-          if (Math.random() < config.shockProbability) {
-            triggerShock();
-          }
-          
-          scheduleNext();
-        }, config.warningTime);
-      }, delay);
-    };
-
-    scheduleNext();
-  }, [gameState.isPlaying, singleMode.difficulty, triggerWarning, triggerShock]);
 
   // Handle game over conditions
   useEffect(() => {
@@ -209,7 +158,9 @@ export const GameScreen: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background-dark to-background-darker relative">
+    <>
+      <ScreenShake isActive={isScreenShaking} />
+      <div className="min-h-screen bg-gradient-to-br from-background-dark to-background-darker relative">
       {/* Game HUD */}
       <GameHUD />
       
@@ -231,7 +182,7 @@ export const GameScreen: React.FC = () => {
         </motion.div>
 
         {/* Tiger Outlet - Main Game Element */}
-        <TigerOutlet className="mb-8" />
+        <TigerOutlet className="mb-8" onShock={handleShockEffect} />
 
         {/* Quick Stats */}
         <div className="flex space-x-4 text-center">
@@ -249,22 +200,6 @@ export const GameScreen: React.FC = () => {
               {singleMode.currentRisk === 'extreme' ? 'ЭКСТРИМ' :
                singleMode.currentRisk === 'high' ? 'ВЫСОКИЙ' :
                singleMode.currentRisk === 'medium' ? 'СРЕДНИЙ' : 'НИЗКИЙ'}
-            </div>
-          </motion.div>
-
-          <motion.div 
-            className="glass-effect px-4 py-2"
-            whileHover={{ scale: 1.05 }}
-          >
-            <div className="text-xs text-gray-300">СТАТУС ИИ</div>
-            <div className={`text-sm font-bold ${
-              singleMode.warningActive ? 'text-yellow-400' :
-              singleMode.shockActive ? 'text-red-400' :
-              'text-green-400'
-            }`}>
-              {singleMode.warningActive ? 'ПРЕДУПРЕЖДЕНИЕ' :
-               singleMode.shockActive ? 'РАЗРЯД' :
-               'БЕЗОПАСНО'}
             </div>
           </motion.div>
         </div>
@@ -303,5 +238,6 @@ export const GameScreen: React.FC = () => {
         />
       </div>
     </div>
+    </>
   );
 };

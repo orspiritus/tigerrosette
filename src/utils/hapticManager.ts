@@ -181,13 +181,31 @@ class HapticManager {
   }
 
   /**
-   * Вибрация при поражении током
+   * Интенсивная вибрация при поражении током
+   * Точная вибрация только в момент удара током
    */
   electricShock(): void {
+    if (!this.isEnabled) return;
+
+    // Сильный импульс точно в момент удара
     this.rigid();
-    // Дополнительная вибрация через 100мс
+    
+    // Один дополнительный короткий импульс для усиления эффекта
     setTimeout(() => {
       if (this.isEnabled) this.heavy();
+    }, 50);
+  }
+
+  /**
+   * Короткая предупреждающая вибрация перед разрядом
+   */
+  electricWarning(): void {
+    if (!this.isEnabled) return;
+    
+    // Две быстрые слабые вибрации
+    this.light();
+    setTimeout(() => {
+      if (this.isEnabled) this.light();
     }, 100);
   }
 
@@ -199,6 +217,35 @@ class HapticManager {
     this.success();
     setTimeout(() => this.medium(), 150);
     setTimeout(() => this.success(), 300);
+  }
+
+  /**
+   * Предупреждающая вибрация когда опасность высока
+   */
+  dangerWarning(): void {
+    if (!this.isEnabled) return;
+    
+    // Две быстрые слабые вибрации как предупреждение
+    this.light();
+    setTimeout(() => {
+      if (this.isEnabled) this.light();
+    }, 100);
+  }
+
+  /**
+   * Интенсивное предупреждение перед высоким риском разряда
+   */
+  extremeDangerWarning(): void {
+    if (!this.isEnabled) return;
+    
+    // Серия из трех нарастающих вибраций
+    this.light();
+    setTimeout(() => {
+      if (this.isEnabled) this.medium();
+    }, 150);
+    setTimeout(() => {
+      if (this.isEnabled) this.heavy();
+    }, 300);
   }
 
   /**

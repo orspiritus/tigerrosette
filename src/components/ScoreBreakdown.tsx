@@ -37,11 +37,22 @@ export const ScoreBreakdown: React.FC<ScoreBreakdownProps> = ({ onClose }) => {
         </h3>
 
         {/* Current Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-2 gap-4 mb-6">
           <div className="text-center glass-effect p-3 rounded-lg">
             <div className="text-xs text-gray-400">ТЕКУЩАЯ СЕРИЯ</div>
             <div className="text-xl font-bold text-yellow-400">
               {singleMode.streakCount}
+            </div>
+          </div>
+          <div className="text-center glass-effect p-3 rounded-lg">
+            <div className="text-xs text-gray-400">КОЭФФИЦИЕНТ УДАЧИ</div>
+            <div className={`text-xl font-bold ${
+              player.luckCoefficient >= 70 ? 'text-green-400' :
+              player.luckCoefficient >= 50 ? 'text-yellow-400' :
+              player.luckCoefficient >= 30 ? 'text-orange-400' :
+              'text-red-400'
+            }`}>
+              {player.luckCoefficient}%
             </div>
           </div>
           <div className="text-center glass-effect p-3 rounded-lg">
@@ -54,6 +65,30 @@ export const ScoreBreakdown: React.FC<ScoreBreakdownProps> = ({ onClose }) => {
             <div className="text-xs text-gray-400">ВСЕГО ВОЛЬТ</div>
             <div className="text-xl font-bold text-blue-400">
               {player.volts}⚡
+            </div>
+          </div>
+        </div>
+
+        {/* Luck Statistics */}
+        <div className="mb-6">
+          <h4 className="text-lg font-bold text-accent-blue mb-3">🍀 Статистика удачи</h4>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="glass-effect p-3 rounded-lg text-center">
+              <div className="text-xs text-gray-400">УСПЕШНЫХ</div>
+              <div className="text-lg font-bold text-green-400">{player.successfulClicks}</div>
+            </div>
+            <div className="glass-effect p-3 rounded-lg text-center">
+              <div className="text-xs text-gray-400">УДАРОВ ТОКОМ</div>
+              <div className="text-lg font-bold text-red-400">{player.shockedClicks}</div>
+            </div>
+            <div className="glass-effect p-3 rounded-lg text-center">
+              <div className="text-xs text-gray-400">ВСЕГО КЛИКОВ</div>
+              <div className="text-lg font-bold text-blue-400">{player.totalClicks}</div>
+            </div>
+          </div>
+          <div className="mt-3 text-center">
+            <div className="text-sm text-gray-300">
+              💡 Удача рассчитывается как процент успешных нажатий
             </div>
           </div>
         </div>
