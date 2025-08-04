@@ -169,6 +169,27 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }, 3000); // Начинаем через 3 секунды после старта игры
   },
 
+  startMultiplayerMode: (mode: 'duel' | 'tournament' | 'coop') => {
+    let gameMode: 'multiplayer' | 'duel' = 'multiplayer';
+    
+    // Если это дуэль, ставим специальный режим
+    if (mode === 'duel') {
+      gameMode = 'duel';
+    }
+    
+    set({
+      gameState: {
+        ...get().gameState,
+        mode: gameMode,
+        isPlaying: true,
+        gameTime: 0,
+        score: 0
+      }
+    });
+    
+    console.log(`Starting multiplayer mode: ${mode}`);
+  },
+
   clickOutlet: () => {
     const state = get();
     const now = Date.now();

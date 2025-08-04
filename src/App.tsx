@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { useGameStore } from './store/gameStore';
 import { MainMenu } from './components/MainMenu';
 import { GameScreen } from './components/GameScreen';
+import { MultiplayerScreen } from './components/MultiplayerScreen';
+import { DuelScreen } from './components/DuelScreen';
 import { LevelUpNotification } from './components/LevelUpNotification';
 import { TelegramProvider } from './components/TelegramProvider';
 
@@ -50,6 +52,8 @@ function App() {
       <div className="App">
         {gameState.mode === 'menu' && <MainMenu />}
         {gameState.mode === 'single' && <GameScreen />}
+        {gameState.mode === 'multiplayer' && <MultiplayerScreen />}
+        {gameState.mode === 'duel' && <DuelScreen />}
         
         {/* Level Up Notification - Global */}
         {levelUpNotification.level && (

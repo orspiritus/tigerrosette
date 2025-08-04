@@ -9,7 +9,7 @@ import { TelegramUserInfo } from './TelegramUserInfo';
 import { useGameApi } from '../hooks/useGameApi';
 
 export const MainMenu: React.FC = () => {
-  const { startSingleMode, player, addExperience, loadStatsFromServer } = useGameStore();
+  const { startSingleMode, startMultiplayerMode, player, addExperience, loadStatsFromServer } = useGameStore();
   const { isAuthenticated } = useGameApi();
   const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
   const [showHapticSettings, setShowHapticSettings] = useState(false);
@@ -144,8 +144,11 @@ export const MainMenu: React.FC = () => {
         className="w-full max-w-md space-y-4"
       >
         <h3 className="text-2xl font-bold text-center text-white mb-6">
-          Выберите сложность
+          ⚡ Одиночный режим
         </h3>
+        <p className="text-center text-gray-300 text-sm mb-4">
+          Выберите сложность игры против ИИ электрика
+        </p>
 
         {/* Easy Mode */}
         <motion.button
@@ -211,6 +214,73 @@ export const MainMenu: React.FC = () => {
           </div>
         </motion.button>
 
+        {/* Multiplayer Mode Section */}
+        <motion.div
+          className="w-full border-t border-white/10 pt-6 mt-6"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.7 }}
+        >
+          <h4 className="text-xl font-bold text-center text-white mb-4">
+            🎮 Многопользовательский режим
+          </h4>
+          
+          {/* Coming Soon for now */}
+          <motion.button
+            onClick={() => {
+              hapticManager.medium();
+              startMultiplayerMode('duel');
+            }}
+            className="w-full glass-effect p-4 rounded-xl hover:bg-purple-500/20 transition-colors border border-purple-400/30"
+            whileHover={{ scale: 1.02, x: 10 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <div className="flex justify-between items-center">
+              <div className="text-left">
+                <div className="text-lg font-bold text-purple-400">ДУЭЛЬ</div>
+                <div className="text-sm text-gray-300">Соревнование 1v1 • Real-time бой</div>
+              </div>
+              <div className="text-2xl">⚔️</div>
+            </div>
+          </motion.button>
+
+          <motion.button
+            onClick={() => {
+              hapticManager.medium();
+              startMultiplayerMode('tournament');
+            }}
+            className="w-full glass-effect p-4 rounded-xl hover:bg-blue-500/20 transition-colors border border-blue-400/30 mt-3"
+            whileHover={{ scale: 1.02, x: 10 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <div className="flex justify-between items-center">
+              <div className="text-left">
+                <div className="text-lg font-bold text-blue-400">ТУРНИР</div>
+                <div className="text-sm text-gray-300">До 8 игроков • Браккет система</div>
+              </div>
+              <div className="text-2xl">🏆</div>
+            </div>
+          </motion.button>
+
+          <motion.button
+            onClick={() => {
+              hapticManager.medium();
+              startMultiplayerMode('coop');
+            }}
+            className="w-full glass-effect p-4 rounded-xl hover:bg-green-500/20 transition-colors border border-green-400/30 mt-3"
+            whileHover={{ scale: 1.02, x: 10 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <div className="flex justify-between items-center">
+              <div className="text-left">
+                <div className="text-lg font-bold text-green-400">КООП</div>
+                <div className="text-sm text-gray-300">Командная игра • Против ИИ</div>
+              </div>
+              <div className="text-2xl">🤝</div>
+            </div>
+          </motion.button>
+        </motion.div>
+
         {/* Score Breakdown Button */}
         <motion.button
           onClick={() => {
@@ -265,7 +335,7 @@ export const MainMenu: React.FC = () => {
         className="mt-8 text-center text-gray-400 text-sm space-y-2"
       >
         <p>⚡ Играй осторожно! ⚡</p>
-        <p className="mt-2">v1.0.0 | Single Mode</p>
+        <p className="mt-2">v1.1.0 | Single Mode + Multiplayer Preview</p>
         
         {/* Development button for testing levels */}
         <button 
