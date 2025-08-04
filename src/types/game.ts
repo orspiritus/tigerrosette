@@ -1,6 +1,6 @@
 // Game Types
 export interface GameState {
-  mode: 'menu' | 'single' | 'multiplayer' | 'duel';
+  mode: 'menu' | 'single' | 'multiplayer' | 'duel' | 'duel-invite';
   isPlaying: boolean;
   isPaused: boolean;
   gameTime: number;
@@ -139,6 +139,8 @@ export interface GameStore {
   // Actions
   startSingleMode: (difficulty: SingleModeState['difficulty']) => void;
   startMultiplayerMode: (mode: 'duel' | 'tournament' | 'coop') => void;
+  startRealDuel: () => void;
+  goToMenu: () => void;
   clickOutlet: () => void;
   updateScore: (scoreData: ScoreData) => void;
   calculateShockImpact: (volts: number) => ShockImpact;

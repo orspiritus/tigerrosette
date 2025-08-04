@@ -170,24 +170,49 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   startMultiplayerMode: (mode: 'duel' | 'tournament' | 'coop') => {
-    let gameMode: 'multiplayer' | 'duel' = 'multiplayer';
+    let gameMode: 'multiplayer' | 'duel' | 'duel-invite' = 'multiplayer';
     
-    // Если это дуэль, ставим специальный режим
+    // Если это дуэль, переходим к экрану приглашений
     if (mode === 'duel') {
-      gameMode = 'duel';
+      gameMode = 'duel-invite';
     }
     
     set({
       gameState: {
         ...get().gameState,
         mode: gameMode,
-        isPlaying: true,
+        isPlaying: false,
         gameTime: 0,
         score: 0
       }
     });
     
     console.log(`Starting multiplayer mode: ${mode}`);
+  },
+
+  // Новая функция для запуска реальной дуэли
+  startRealDuel: () => {
+    set({
+      gameState: {
+        ...get().gameState,
+        mode: 'duel',
+        isPlaying: true,
+        gameTime: 0,
+        score: 0
+      }
+    });
+    
+    console.log('Starting real duel with another player');
+  },
+
+  // Функция для возврата в главное меню
+  goToMenu: () => {
+    set({
+      gameState: {
+        ...defaultGameState,
+        mode: 'menu'
+      }
+    });
   },
 
   clickOutlet: () => {

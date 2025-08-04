@@ -4,6 +4,8 @@ import { MainMenu } from './components/MainMenu';
 import { GameScreen } from './components/GameScreen';
 import { MultiplayerScreen } from './components/MultiplayerScreen';
 import { DuelScreen } from './components/DuelScreen';
+import { DuelInviteScreen } from './components/DuelInviteScreen';
+import { DuelInviteReceiver } from './components/DuelInviteReceiver';
 import { LevelUpNotification } from './components/LevelUpNotification';
 import { TelegramProvider } from './components/TelegramProvider';
 
@@ -53,7 +55,11 @@ function App() {
         {gameState.mode === 'menu' && <MainMenu />}
         {gameState.mode === 'single' && <GameScreen />}
         {gameState.mode === 'multiplayer' && <MultiplayerScreen />}
+        {gameState.mode === 'duel-invite' && <DuelInviteScreen />}
         {gameState.mode === 'duel' && <DuelScreen />}
+        
+        {/* Глобальный компонент для получения приглашений */}
+        <DuelInviteReceiver />
         
         {/* Level Up Notification - Global */}
         {levelUpNotification.level && (

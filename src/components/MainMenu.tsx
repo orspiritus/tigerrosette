@@ -9,7 +9,13 @@ import { TelegramUserInfo } from './TelegramUserInfo';
 import { useGameApi } from '../hooks/useGameApi';
 
 export const MainMenu: React.FC = () => {
-  const { startSingleMode, startMultiplayerMode, player, addExperience, loadStatsFromServer } = useGameStore();
+  const { 
+    player, 
+    startSingleMode, 
+    startMultiplayerMode,
+    addExperience,
+    loadStatsFromServer 
+  } = useGameStore();
   const { isAuthenticated } = useGameApi();
   const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
   const [showHapticSettings, setShowHapticSettings] = useState(false);

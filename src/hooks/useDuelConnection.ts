@@ -25,6 +25,8 @@ export const useDuelConnection = () => {
   // Симуляция WebSocket соединения (в реальной версии здесь будет WebSocket)
   const connectionRef = useRef<any>(null);
   const messageQueueRef = useRef<DuelMessage[]>([]);
+  const aiIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastAiActionRef = useRef<number>(0);
 
   // Симуляция подключения к серверу
   const connect = useCallback(() => {
@@ -52,6 +54,10 @@ export const useDuelConnection = () => {
     if (connectionRef.current) {
       clearInterval(connectionRef.current);
       connectionRef.current = null;
+    }
+    if (aiIntervalRef.current) {
+      clearInterval(aiIntervalRef.current);
+      aiIntervalRef.current = null;
     }
     setIsConnected(false);
     setCurrentRoom(null);
@@ -123,21 +129,35 @@ export const useDuelConnection = () => {
     }
 
     if (message.type === 'player_action') {
-      // Симуляция действий противника в ответ
-      setTimeout(() => {
-        const opponentAction = Math.random() < 0.6; // 60% шанс что противник тоже кликнет
-        if (opponentAction) {
-          messageQueueRef.current.push({
-            type: Math.random() < 0.2 ? 'player_shocked' : 'player_action',
-            playerId: 'bot_opponent',
-            data: {
-              points: Math.floor(Math.random() * 60) + 20,
-              volts: Math.floor(Math.random() * 40) + 10
-            },
-            timestamp: Date.now()
-          });
-        }
-      }, 500 + Math.random() * 2000);
+      // ИИ НЕ отвечает на каждое действие игрока - только периодически
+      const now = Date.now();
+      const timeSinceLastAi = now - lastAiActionRef.current;
+      
+      // ИИ действует только раз в 2-4 секунды (человеческий темп)
+      if (timeSinceLastAi > 2000 && Math.random() < 0.3) {
+        lastAiActionRef.current = now;
+        setTimeout(() => {
+          const gotShocked = Math.random() < 0.25; // 25% шанс удара током
+          if (gotShocked) {
+            messageQueueRef.current.push({
+              type: 'player_shocked',
+              playerId: 'bot_opponent',
+              data: { damage: 20 + Math.random() * 30 },
+              timestamp: Date.now()
+            });
+          } else {
+            messageQueueRef.current.push({
+              type: 'player_action',
+              playerId: 'bot_opponent',
+              data: {
+                points: Math.floor(Math.random() * 50) + 15, // 15-65 очков
+                volts: Math.floor(Math.random() * 30) + 10   // 10-40 вольт
+              },
+              timestamp: Date.now()
+            });
+          }
+        }, 800 + Math.random() * 1500); // 0.8-2.3 сек задержка
+      }
     }
   }, [isConnected, currentRoom]);
 
@@ -147,6 +167,36 @@ export const useDuelConnection = () => {
       type: 'player_ready',
       playerId: player.id
     });
+    
+    // Запускаем независимую симуляцию ИИ с человеческим темпом
+    setTimeout(() => {
+      aiIntervalRef.current = setInterval(() => {
+        const now = Date.now();
+        const shouldAct = Math.random() < 0.4; // 40% шанс действия каждые 2-3 сек
+        
+        if (shouldAct) {
+          const gotShocked = Math.random() < 0.25; // 25% шанс удара током
+          if (gotShocked) {
+            messageQueueRef.current.push({
+              type: 'player_shocked',
+              playerId: 'bot_opponent',
+              data: { damage: 20 + Math.random() * 30 },
+              timestamp: now
+            });
+          } else {
+            messageQueueRef.current.push({
+              type: 'player_action',
+              playerId: 'bot_opponent',
+              data: {
+                points: Math.floor(Math.random() * 50) + 15, // 15-65 очков за клик
+                volts: Math.floor(Math.random() * 30) + 10   // 10-40 вольт
+              },
+              timestamp: now
+            });
+          }
+        }
+      }, 2000 + Math.random() * 1500); // Каждые 2-3.5 секунды
+    }, 3000); // Начинаем через 3 секунды после готовности
   }, [sendMessage, player.id]);
 
   // Действие игрока
@@ -176,6 +226,13 @@ export const useDuelConnection = () => {
         data: { reason: 'left' }
       });
     }
+    
+    // Останавливаем ИИ симуляцию
+    if (aiIntervalRef.current) {
+      clearInterval(aiIntervalRef.current);
+      aiIntervalRef.current = null;
+    }
+    
     setCurrentRoom(null);
     setOpponent(null);
     setMessages([]);
