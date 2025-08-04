@@ -55,6 +55,41 @@ router.get('/players/:userId', async (req, res) => {
   }
 });
 
+// Эндпоинт для получения информации о дуэли
+router.get('/info/:duelId', async (req, res) => {
+  try {
+    const { duelId } = req.params;
+    
+    console.log(`🔍 Запрос информации о дуэли: ${duelId}`);
+    
+    // В реальной версии здесь будет запрос к базе данных или Python боту
+    // Пока возвращаем тестовые данные
+    const mockDuelInfo = {
+      id: duelId,
+      player1_id: 7959318906,
+      player2_id: 426792114,
+      status: 'pending',
+      created_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // 5 минут от сейчас
+      fromUser: {
+        firstName: 'Игрок',
+        level: 5
+      }
+    };
+    
+    res.json({
+      success: true,
+      duel: mockDuelInfo
+    });
+  } catch (error) {
+    console.error('Ошибка получения информации о дуэли:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Ошибка получения информации о дуэли'
+    });
+  }
+});
+
 // Эндпоинт для создания приглашения на дуэль
 router.post('/invite', async (req, res) => {
   try {

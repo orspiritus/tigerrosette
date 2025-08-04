@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 """
-TigerRozetka Telegram Bot - aiogram версия (окончательно исправленная)
-Современная система дуэлей и управления подписчиками
+TigerRozetka Telegram Bot - исправленная aiogram версия
+Система дуэлей и управления подписчиками без ошибок импорта
 """
 
 import asyncio
@@ -12,7 +11,6 @@ import uuid
 from typing import List, Dict, Optional, Any
 from datetime import datetime, timedelta
 
-# Проверка зависимостей с защитой от ошибок импорта
 try:
     import aiohttp
     from aiogram import Bot, Dispatcher, Router, F
@@ -26,7 +24,6 @@ try:
     from aiogram.fsm.storage.memory import MemoryStorage
     from dotenv import load_dotenv
     IMPORTS_OK = True
-    print("✅ Все зависимости загружены успешно")
 except ImportError as e:
     print(f"⚠️  Некоторые зависимости не установлены: {e}")
     print("📦 Запустите: pip install aiogram aiohttp python-dotenv")
@@ -48,6 +45,16 @@ if IMPORTS_OK:
         selecting_opponent = State()
         waiting_response = State()
         in_game = State()
+
+# Middleware для автоматической регистрации пользователей - упрощенная версия
+async def user_registration_middleware(handler, event, data):
+    """Middleware для автоматической регистрации пользователей"""
+    if hasattr(event, 'from_user') and event.from_user:
+        user = event.from_user
+        await register_user(
+            user.id, user.username, user.first_name, user.last_name
+        )
+    return await handler(event, data)
 
 class TigerRozetkaBotManager:
     def __init__(self):
@@ -241,22 +248,13 @@ async def cleanup_expired_duels():
     if deleted > 0:
         print(f"🧹 Удалено истекших дуэлей: {deleted}")
 
-# Инициализация бота и обработчиков (только если все зависимости доступны)
 if IMPORTS_OK:
     # Создаем бота и диспетчер
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher(storage=MemoryStorage())
-    main_router = Router()
 
-    # Middleware для автоматической регистрации пользователей
-    async def user_registration_middleware(handler, event, data):
-        """Middleware для автоматической регистрации пользователей"""
-        if hasattr(event, 'from_user') and event.from_user:
-            user = event.from_user
-            await register_user(
-                user.id, user.username, user.first_name, user.last_name
-            )
-        return await handler(event, data)
+    # Главный роутер
+    main_router = Router()
 
     # Команда /start
     @main_router.message(CommandStart())
@@ -571,17 +569,6 @@ if IMPORTS_OK:
         except Exception as e:
             print(f"❌ Ошибка связи с backend: {e}")
 
-    # API функции для интеграции с frontend
-    async def api_get_available_players(user_id: int) -> List[Dict[str, Any]]:
-        """API функция для получения доступных игроков"""
-        return await get_active_players(exclude_user_id=user_id)
-
-    async def api_create_duel_challenge(from_user_id: int, to_user_id: int) -> str:
-        """API функция для создания вызова на дуэль"""
-        duel_id = await create_duel(from_user_id, to_user_id)
-        await send_duel_notification(to_user_id, from_user_id, duel_id)
-        return duel_id
-
     # Фоновая задача очистки
     async def cleanup_task():
         """Фоновая задача для очистки истекших дуэлей"""
@@ -619,26 +606,17 @@ if IMPORTS_OK:
         asyncio.create_task(cleanup_task())
         
         print("✅ TigerRozetka Bot запущен!")
-        print("📱 Команды бота: /start, /duel, /stats, /play")
-        print("🔗 Backend API:  http://localhost:3001")
-        print("🌐 Frontend:     http://localhost:5173")
-        print("📱 Game URL:     https://orspiritus.github.io/tigerrosette/")
-        print("")
-        print("💡 Закройте все окна для остановки сервисов")
-        print("")
+        print("📱 Доступные команды: /start, /play, /duel, /stats")
         
         # Запускаем polling
         await dp.start_polling(bot, drop_pending_updates=True)
 
     if __name__ == '__main__':
-        asyncio.run(main())
+        if IMPORTS_OK:
+            asyncio.run(main())
+        else:
+            print("❌ Невозможно запустить бота без необходимых зависимостей")
+            print("📦 Установите: pip install aiogram aiohttp python-dotenv")
 else:
-    print("❌ Невозможно запустить бота без необходимых зависимостей")
+    print("❌ Невозможно импортировать aiogram модули")
     print("📦 Установите: pip install aiogram aiohttp python-dotenv")
-    
-    # Заглушка main функции для случая отсутствия зависимостей
-    async def main():
-        print("❌ Бот не может быть запущен без установленных зависимостей")
-        
-    if __name__ == '__main__':
-        asyncio.run(main())

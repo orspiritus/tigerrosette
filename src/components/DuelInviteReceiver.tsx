@@ -25,25 +25,73 @@ export const DuelInviteReceiver: React.FC = () => {
     if (isInTelegram && webApp) {
       // Проверяем URL параметры на наличие приглашения
       const urlParams = new URLSearchParams(window.location.search);
-      const inviteId = urlParams.get('duel_invite');
+      const inviteId = urlParams.get('duel') || urlParams.get('duel_invite');
+      
+      console.log('🔍 URL parameters:', window.location.search);
+      console.log('🎯 Duel ID found:', inviteId);
+      
       if (inviteId) {
-        // Симуляция входящего приглашения из URL
-        const mockInvite = {
-          id: inviteId,
-          fromUserId: 12345,
-          fromUserName: 'Тестовый игрок',
-          fromUserLevel: 8,
-          message: 'Приглашение на дуэль!',
-          receivedAt: Date.now(),
-          expiresAt: Date.now() + (5 * 60 * 1000)
-        };
-        handleIncomingInvite(mockInvite);
+        console.log('🎯 Found duel ID in URL, fetching duel info...');
+        fetchDuelInfo(inviteId);
       }
 
       // В реальной версии здесь будет подписка на события WebApp
       console.log('Слушаем приглашения на дуэли...');
     }
   }, [isInTelegram, webApp]);
+
+  // Fetch real duel information from backend
+  const fetchDuelInfo = async (duelId: string) => {
+    try {
+      console.log('🔍 Fetching duel info for ID:', duelId);
+      const response = await fetch(`http://localhost:3001/api/duels/info/${duelId}`);
+      const data = await response.json();
+      
+      if (data.success && data.duel) {
+        console.log('✅ Duel info received:', data.duel);
+        const duelInfo = data.duel;
+        
+        // Create incoming invite from real duel data
+        const realInvite = {
+          id: duelId,
+          fromUserId: duelInfo.player1_id,
+          fromUserName: duelInfo.fromUser?.firstName || 'Игрок',
+          fromUserLevel: duelInfo.fromUser?.level || 1,
+          message: `Приглашение на дуэль от ${duelInfo.fromUser?.firstName || 'игрока'}!`,
+          receivedAt: Date.now(),
+          expiresAt: new Date(duelInfo.expires_at).getTime()
+        };
+        
+        handleIncomingInvite(realInvite);
+      } else {
+        console.error('❌ Failed to fetch duel info:', data.error);
+        // Fallback to mock data if backend call fails
+        const fallbackInvite = {
+          id: duelId,
+          fromUserId: 12345,
+          fromUserName: 'Игрок',
+          fromUserLevel: 1,
+          message: 'Приглашение на дуэль!',
+          receivedAt: Date.now(),
+          expiresAt: Date.now() + (5 * 60 * 1000)
+        };
+        handleIncomingInvite(fallbackInvite);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching duel info:', error);
+      // Fallback to mock data if request fails
+      const fallbackInvite = {
+        id: duelId,
+        fromUserId: 12345,
+        fromUserName: 'Игрок',
+        fromUserLevel: 1,
+        message: 'Приглашение на дуэль!',
+        receivedAt: Date.now(),
+        expiresAt: Date.now() + (5 * 60 * 1000)
+      };
+      handleIncomingInvite(fallbackInvite);
+    }
+  };
 
   const handleIncomingInvite = (invite: any) => {
     const newInvite: IncomingDuelInvite = {

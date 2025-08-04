@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
 """
-TigerRozetka Telegram Bot - aiogram версия (окончательно исправленная)
+TigerRozetka Telegram Bot - aiogram версия (исправленная)
 Современная система дуэлей и управления подписчиками
 """
 
@@ -571,17 +570,6 @@ if IMPORTS_OK:
         except Exception as e:
             print(f"❌ Ошибка связи с backend: {e}")
 
-    # API функции для интеграции с frontend
-    async def api_get_available_players(user_id: int) -> List[Dict[str, Any]]:
-        """API функция для получения доступных игроков"""
-        return await get_active_players(exclude_user_id=user_id)
-
-    async def api_create_duel_challenge(from_user_id: int, to_user_id: int) -> str:
-        """API функция для создания вызова на дуэль"""
-        duel_id = await create_duel(from_user_id, to_user_id)
-        await send_duel_notification(to_user_id, from_user_id, duel_id)
-        return duel_id
-
     # Фоновая задача очистки
     async def cleanup_task():
         """Фоновая задача для очистки истекших дуэлей"""
@@ -619,13 +607,7 @@ if IMPORTS_OK:
         asyncio.create_task(cleanup_task())
         
         print("✅ TigerRozetka Bot запущен!")
-        print("📱 Команды бота: /start, /duel, /stats, /play")
-        print("🔗 Backend API:  http://localhost:3001")
-        print("🌐 Frontend:     http://localhost:5173")
-        print("📱 Game URL:     https://orspiritus.github.io/tigerrosette/")
-        print("")
-        print("💡 Закройте все окна для остановки сервисов")
-        print("")
+        print("📱 Доступные команды: /start, /play, /duel, /stats")
         
         # Запускаем polling
         await dp.start_polling(bot, drop_pending_updates=True)

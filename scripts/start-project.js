@@ -31,9 +31,17 @@ function cleanup() {
     processes.forEach(proc => {
         if (proc && !proc.killed) {
             if (isWindows) {
-                exec(`taskkill /pid ${proc.pid} /t /f`);
+                try {
+                    exec(`taskkill /pid ${proc.pid} /t /f`);
+                } catch (e) {
+                    // Игнорируем ошибки при завершении процессов
+                }
             } else {
-                proc.kill('SIGTERM');
+                try {
+                    proc.kill('SIGTERM');
+                } catch (e) {
+                    // Игнорируем ошибки при завершении процессов
+                }
             }
         }
     });
@@ -55,50 +63,76 @@ async function checkDependencies() {
         console.log('✅ Python зависимости найдены');
     } catch {
         console.log('⚡ Устанавливаем Python зависимости...');
-        await execPromise('pip install aiogram aiohttp python-dotenv');
+        try {
+            await execPromise('pip install aiogram aiohttp python-dotenv');
+        } catch (error) {
+            console.error('❌ Ошибка установки Python зависимостей:', error.message);
+        }
     }
     
     // Проверяем Backend зависимости
     if (!fs.existsSync('backend/node_modules')) {
         console.log('⚡ Устанавливаем Backend зависимости...');
-        await execPromise('npm install', { cwd: 'backend' });
+        try {
+            await execPromise('npm install', { cwd: 'backend' });
+        } catch (error) {
+            console.error('❌ Ошибка установки Backend зависимостей:', error.message);
+        }
     }
     
     // Проверяем Frontend зависимости
     if (!fs.existsSync('node_modules')) {
         console.log('⚡ Устанавливаем Frontend зависимости...');
-        await execPromise('npm install');
+        try {
+            await execPromise('npm install');
+        } catch (error) {
+            console.error('❌ Ошибка установки Frontend зависимостей:', error.message);
+        }
     }
 }
 
 function execPromise(command, options = {}) {
     return new Promise((resolve, reject) => {
-        exec(command, options, (error) => {
-            if (error) reject(error);
-            else resolve();
+        exec(command, options, (error, stdout, stderr) => {
+            if (error) {
+                reject(new Error(`${error.message}\nstdout: ${stdout}\nstderr: ${stderr}`));
+            } else {
+                resolve(stdout);
+            }
         });
     });
 }
 
 function spawnProcess(command, args, options = {}) {
     const proc = spawn(command, args, {
-        stdio: 'pipe',
+        stdio: ['ignore', 'pipe', 'pipe'],
         shell: isWindows,
+        detached: !isWindows,
         ...options
     });
     
     proc.stdout.on('data', (data) => {
-        console.log(`[${options.name || 'Process'}] ${data.toString().trim()}`);
+        const output = data.toString().trim();
+        if (output) {
+            console.log(`[${options.name || 'Process'}] ${output}`);
+        }
     });
     
     proc.stderr.on('data', (data) => {
-        console.error(`[${options.name || 'Process'}] ${data.toString().trim()}`);
+        const output = data.toString().trim();
+        if (output && !output.includes('DeprecationWarning')) {
+            console.error(`[${options.name || 'Process'}] ${output}`);
+        }
     });
     
-    proc.on('exit', (code) => {
-        if (code !== 0) {
+    proc.on('exit', (code, signal) => {
+        if (code !== 0 && code !== null) {
             console.error(`❌ ${options.name || 'Process'} завершился с кодом ${code}`);
         }
+    });
+    
+    proc.on('error', (error) => {
+        console.error(`❌ Ошибка запуска ${options.name || 'Process'}:`, error.message);
     });
     
     processes.push(proc);
@@ -106,33 +140,51 @@ function spawnProcess(command, args, options = {}) {
 }
 
 async function startServices() {
-    await checkDependencies();
-    
-    console.log('🤖 2/4 Запуск Telegram Bot (aiogram)...');
-    spawnProcess('python', ['telegram_bot_aiogram.py'], { name: 'TelegramBot' });
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    console.log('🔧 3/4 Запуск Backend API (Express)...');
-    spawnProcess('npm', ['run', 'dev'], { name: 'Backend', cwd: 'backend' });
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    console.log('🎮 4/4 Запуск Frontend Dev Server (Vite)...');
-    spawnProcess('npm', ['run', 'dev'], { name: 'Frontend' });
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    console.log('\n🎉 TigerRozetka запущен успешно!');
-    console.log('==================================');
-    console.log('🤖 Telegram Bot: @tigerrosette_bot');
-    console.log('🔧 Backend API:  http://localhost:3001');
-    console.log('🎮 Frontend:     http://localhost:5173');
-    console.log('📱 Game URL:     https://orspiritus.github.io/tigerrosette/');
-    console.log('');
-    console.log('💡 Команды бота: /start, /duel, /stats, /play');
-    console.log('⚡ Нажмите Ctrl+C для остановки всех сервисов');
-    console.log('');
-    
-    // Держим процесс активным
-    setInterval(() => {}, 1000);
+    try {
+        await checkDependencies();
+        
+        console.log('🤖 2/4 Запуск Telegram Bot (aiogram)...');
+        spawnProcess('python', ['telegram_bot_aiogram.py'], { name: 'TelegramBot' });
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        console.log('🔧 3/4 Запуск Backend API (Express)...');
+        spawnProcess(isWindows ? 'npm.cmd' : 'npm', ['run', 'dev'], { 
+            name: 'Backend', 
+            cwd: path.resolve('backend') 
+        });
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        console.log('🎮 4/4 Запуск Frontend Dev Server (Vite)...');
+        spawnProcess(isWindows ? 'npm.cmd' : 'npm', ['run', 'dev'], { name: 'Frontend' });
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        console.log('\n🎉 TigerRozetka запущен успешно!');
+        console.log('==================================');
+        console.log('🤖 Telegram Bot: @tigerrosette_bot');
+        console.log('🔧 Backend API:  http://localhost:3001');
+        console.log('🎮 Frontend:     http://localhost:5173');
+        console.log('📱 Game URL:     https://orspiritus.github.io/tigerrosette/');
+        console.log('');
+        console.log('💡 Команды бота: /start, /duel, /stats, /play');
+        console.log('⚡ Нажмите Ctrl+C для остановки всех сервисов');
+        console.log('');
+        
+        // Держим процесс активным
+        setInterval(() => {
+            // Проверяем, что процессы все еще работают
+            const activeProcesses = processes.filter(p => !p.killed && p.pid);
+            if (activeProcesses.length === 0) {
+                console.log('⚠️  Все процессы завершились');
+                cleanup();
+            }
+        }, 5000);
+        
+    } catch (error) {
+        console.error('❌ Ошибка при запуске сервисов:', error.message);
+        cleanup();
+    }
 }
 
-startServices().catch(console.error);
+if (require.main === module) {
+    startServices();
+}

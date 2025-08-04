@@ -9,8 +9,11 @@
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "deploy": "npm run build && gh-pages -d dist",
-    "start-all": "concurrently \"python telegram_bot_aiogram.py\" \"cd backend && npm run dev\" \"npm run dev\"",
-    "start-project": "node scripts/start-project.js"
+    "start-all": "concurrently \"python telegram_bot_aiogram_final.py\" \"cd backend && npm run dev\" \"npm run dev\"",
+    "start-project": "node scripts/start-project.js",
+    "start-bot": "python telegram_bot_aiogram_final.py",
+    "start-backend": "cd backend && npm run dev",
+    "setup": "npm install && cd backend && npm install && pip install aiogram aiohttp python-dotenv"
   },
   "dependencies": {
     "@telegram-apps/sdk": "^1.1.3",
