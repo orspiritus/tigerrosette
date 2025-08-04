@@ -10,6 +10,9 @@ interface TelegramContact {
   lastName?: string;
   username?: string;
   photoUrl?: string;
+  level?: number;
+  totalGames?: number;
+  wins?: number;
 }
 
 interface DuelInvite {
@@ -22,43 +25,41 @@ interface DuelInvite {
 }
 
 export const DuelInviteScreen: React.FC = () => {
-  const { player, endGame } = useGameStore();
+  const { player, goToMenu } = useGameStore();
   const { webApp, user, isInTelegram } = useTelegram();
   const [contacts, setContacts] = useState<TelegramContact[]>([]);
   const [pendingInvites, setPendingInvites] = useState<DuelInvite[]>([]);
   const [selectedContact, setSelectedContact] = useState<TelegramContact | null>(null);
   const [inviteStatus, setInviteStatus] = useState<'idle' | 'sending' | 'sent' | 'waiting'>('idle');
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Получение контактов из Telegram
+  // Получение реальных игроков из базы данных бота
   useEffect(() => {
-    if (isInTelegram && webApp) {
-      // Используем Telegram API для получения контактов
-      loadTelegramContacts();
+    if (isInTelegram && webApp && user) {
+      loadRealPlayers(user.id);
     } else {
-      // Для тестирования без Telegram - моковые контакты
-      setContacts([
-        { id: 12345, firstName: 'Анна', lastName: 'Иванова', username: 'anna_i' },
-        { id: 54321, firstName: 'Михаил', lastName: 'Петров', username: 'mike_p' },
-        { id: 98765, firstName: 'Елена', username: 'lena_gamer' },
-        { id: 11111, firstName: 'Дмитрий', lastName: 'Козлов' },
-      ]);
+      setContacts([]);
     }
-  }, [isInTelegram, webApp]);
+  }, [isInTelegram, webApp, user]);
 
-  const loadTelegramContacts = async () => {
+  const loadRealPlayers = async (userId: number) => {
+    setIsLoading(true);
     try {
-      // Пока используем статичный список друзей
-      // В реальной версии здесь будет интеграция с Telegram API
-      setContacts([
-        { id: 12345, firstName: 'Анна', lastName: 'Иванова', username: 'anna_i' },
-        { id: 54321, firstName: 'Михаил', lastName: 'Петров', username: 'mike_p' },
-        { id: 98765, firstName: 'Елена', username: 'lena_gamer' },
-        { id: 11111, firstName: 'Дмитрий', lastName: 'Козлов' },
-        { id: 22222, firstName: 'Ольга', lastName: 'Смирнова', username: 'olga_s' },
-      ]);
-      console.log('Контакты загружены (тестовый режим)');
+      const response = await fetch(`http://localhost:3001/api/duels/players/${userId}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setContacts(data.players);
+        console.log(`✅ Загружено ${data.players.length} реальных игроков`);
+      } else {
+        console.error('Ошибка загрузки игроков:', data.error);
+        setContacts([]);
+      }
     } catch (error) {
-      console.error('Ошибка при загрузке контактов:', error);
+      console.error('Ошибка запроса игроков:', error);
+      setContacts([]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -72,70 +73,43 @@ export const DuelInviteScreen: React.FC = () => {
     hapticManager.medium();
 
     try {
-      // Создаем уникальный ID приглашения
-      const inviteId = `duel_${Date.now()}_${user.id}_${contact.id}`;
-      
-      // Формируем сообщение-приглашение
-      const inviteMessage = `🎮⚔️ ДУЭЛЬ TIGERROZETKA!\n\n` +
-        `${user.first_name} (Уровень ${player.level}) вызывает вас на дуэль!\n\n` +
-        `⚡ Игра на 60 секунд\n` +
-        `🏆 Кто наберет больше очков - тот победил!\n\n` +
-        `Принять вызов? Нажмите кнопку ниже 👇`;
-
-      // Отправляем приглашение через Telegram
-      if (webApp.sendData) {
-        const inviteData = {
-          type: 'duel_invite',
-          inviteId,
-          fromUser: {
-            id: user.id,
-            name: user.first_name,
-            level: player.level
-          },
+      const response = await fetch('http://localhost:3001/api/duels/invite', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fromUserId: user.id,
           toUserId: contact.id,
-          message: inviteMessage
+          message: `${user.first_name} (Уровень ${player.level}) вызывает вас на дуэль!`
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        const invite: DuelInvite = {
+          id: result.duelId,
+          fromUserId: user.id,
+          toUserId: contact.id,
+          status: 'pending',
+          createdAt: Date.now(),
+          expiresAt: Date.now() + (5 * 60 * 1000)
         };
 
-        webApp.sendData(JSON.stringify(inviteData));
+        setPendingInvites(prev => [...prev, invite]);
+        setInviteStatus('sent');
+
+        if (webApp.showAlert) {
+          webApp.showAlert(`Приглашение отправлено ${contact.firstName}! Ожидаем ответа...`);
+        }
+
+        setTimeout(() => {
+          setInviteStatus('waiting');
+        }, 2000);
+      } else {
+        throw new Error(result.error || 'Ошибка отправки приглашения');
       }
-
-      // Показываем приглашение пользователю
-      if (webApp.showConfirm) {
-        webApp.showConfirm(
-          `Отправить приглашение на дуэль пользователю ${contact.firstName}?\n\n` +
-          `Игра: 60 секунд\nВаш уровень: ${player.level}`,
-          (confirmed: boolean) => {
-            if (!confirmed) {
-              setInviteStatus('idle');
-              return;
-            }
-          }
-        );
-      }
-
-      // Создаем локальное приглашение для отслеживания
-      const invite: DuelInvite = {
-        id: inviteId,
-        fromUserId: user.id,
-        toUserId: contact.id,
-        status: 'pending',
-        createdAt: Date.now(),
-        expiresAt: Date.now() + (5 * 60 * 1000) // 5 минут на ответ
-      };
-
-      setPendingInvites(prev => [...prev, invite]);
-      setInviteStatus('sent');
-
-      // Показываем успешное уведомление
-      if (webApp.showAlert) {
-        webApp.showAlert(`Приглашение отправлено ${contact.firstName}! Ожидаем ответа...`);
-      }
-
-      // Переходим в режим ожидания
-      setTimeout(() => {
-        setInviteStatus('waiting');
-      }, 2000);
-
     } catch (error) {
       console.error('Ошибка отправки приглашения:', error);
       setInviteStatus('idle');
@@ -159,7 +133,7 @@ export const DuelInviteScreen: React.FC = () => {
 
   const handleBackToMenu = () => {
     hapticManager.light();
-    endGame();
+    goToMenu();
   };
 
   const getContactDisplayName = (contact: TelegramContact) => {
@@ -181,74 +155,92 @@ export const DuelInviteScreen: React.FC = () => {
           >
             ← Назад
           </button>
-          <h1 className="text-xl font-bold text-primary-orange">⚔️ ПРИГЛАСИТЬ НА ДУЭЛЬ</h1>
-          <div className="text-sm text-gray-400">
-            {isInTelegram ? '📱 Telegram' : '🌐 Web'}
-          </div>
+          <h1 className="text-white text-xl font-bold">⚔️ Приглашения на дуэль</h1>
+          <div></div>
         </div>
-      </div>
 
-      {/* Статус */}
-      <div className="bg-black/30 p-4 text-center">
-        <div className="text-lg text-white mb-2">
-          {inviteStatus === 'idle' && '👥 Выберите соперника для дуэли'}
-          {inviteStatus === 'sending' && '📤 Отправка приглашения...'}
-          {inviteStatus === 'sent' && '✅ Приглашение отправлено!'}
-          {inviteStatus === 'waiting' && '⏳ Ожидаем ответа...'}
-        </div>
+        {/* Предупреждение для не-Telegram пользователей */}
         {!isInTelegram && (
-          <div className="text-sm text-yellow-400">
+          <div className="text-sm text-yellow-400 mt-2 text-center">
             ⚠️ Для дуэлей откройте игру в Telegram
           </div>
         )}
       </div>
 
-      {/* Контакты */}
+      {/* Основной контент */}
       <div className="p-4">
-        <div className="text-white text-lg mb-4 font-bold">
-          📞 Ваши контакты:
-        </div>
-        
-        <div className="space-y-3">
-          {contacts.map((contact) => (
-            <motion.div
-              key={contact.id}
-              className={`glass-effect p-4 rounded-xl cursor-pointer transition-all ${
-                selectedContact?.id === contact.id 
-                  ? 'border-2 border-green-400 bg-green-400/10' 
-                  : 'border border-white/20 hover:border-orange-400'
-              }`}
-              onClick={() => handleContactSelect(contact)}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-red-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                    {contact.firstName.charAt(0)}
-                  </div>
-                  <div>
-                    <div className="text-white font-medium">
-                      {getContactDisplayName(contact)}
-                    </div>
-                    <div className="text-gray-400 text-sm">
-                      Нажмите, чтобы пригласить на дуэль
-                    </div>
-                  </div>
-                </div>
-                
-                {selectedContact?.id === contact.id && (
-                  <div className="text-green-400 text-2xl">✓</div>
-                )}
+        {isInTelegram ? (
+          <>
+            <div className="text-white text-lg mb-4 font-bold">
+              👥 Игроки онлайн:
+            </div>
+            
+            {isLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin text-orange-400 text-4xl mb-4">⚡</div>
+                <div className="text-gray-400">Загружаем игроков...</div>
               </div>
-            </motion.div>
-          ))}
-        </div>
-
-        {contacts.length === 0 && (
-          <div className="text-center text-gray-400 py-8">
-            <div className="text-4xl mb-4">👥</div>
-            <div>Загрузка контактов...</div>
+            ) : contacts.length > 0 ? (
+              <div className="space-y-3">
+                {contacts.map((contact) => (
+                  <motion.div
+                    key={contact.id}
+                    className={`glass-effect p-4 rounded-xl cursor-pointer transition-all ${
+                      selectedContact?.id === contact.id 
+                        ? 'border-2 border-green-400 bg-green-400/10' 
+                        : 'border border-white/20 hover:border-orange-400'
+                    }`}
+                    onClick={() => handleContactSelect(contact)}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-red-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                          {contact.firstName.charAt(0)}
+                        </div>
+                        <div>
+                          <div className="text-white font-medium">
+                            {getContactDisplayName(contact)}
+                          </div>
+                          <div className="text-gray-400 text-sm">
+                            Уровень {contact.level || 1} • Побед: {contact.wins || 0}/{contact.totalGames || 0}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {selectedContact?.id === contact.id && (
+                        <div className="text-green-400 text-2xl">✓</div>
+                      )}
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center text-gray-400 py-8">
+                <div className="text-4xl mb-4">😔</div>
+                <div className="text-lg mb-2">Нет доступных игроков</div>
+                <div className="text-sm">
+                  Пригласите друзей подписаться на бота для дуэлей!
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">📱</div>
+            <div className="text-xl text-white mb-4">Откройте игру в Telegram</div>
+            <div className="text-gray-400 mb-6">
+              Дуэли доступны только подписчикам бота в Telegram
+            </div>
+            <a 
+              href="https://orspiritus.github.io/tigerrosette/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              🚀 Открыть в Telegram
+            </a>
           </div>
         )}
       </div>

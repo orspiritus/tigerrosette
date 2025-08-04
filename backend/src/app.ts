@@ -9,6 +9,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 // Import routes
 import authRoutes from './routes/auth';
 import gameRoutes from './routes/game';
+import duelsRoutes from './routes/duels';
 // import userRoutes from './routes/user';
 // import achievementsRoutes from './routes/achievements';
 // import economyRoutes from './routes/economy';
@@ -50,6 +51,7 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/game', gameRoutes);
+app.use('/api/duels', duelsRoutes);
 // app.use('/api/user', userRoutes);
 // app.use('/api/achievements', achievementsRoutes);
 // app.use('/api/economy', economyRoutes);
