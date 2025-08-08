@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '../store/gameStore';
 import { ConnectionStatus } from './ConnectionStatus';
+import { ProtectionShop } from './ProtectionShop';
 
 export const GameHUD: React.FC = () => {
-  const { player, gameState, singleMode, aiElectrician, repairAIElectrician } = useGameStore();
+  const { player, gameState, singleMode, aiElectrician, repairAIElectrician, getTotalProtection } = useGameStore();
+  const [showShop, setShowShop] = useState(false);
 
   return (
     <div className="fixed top-0 left-0 right-0 z-10 bg-black/20 backdrop-blur-sm border-b border-white/10">
@@ -147,6 +149,42 @@ export const GameHUD: React.FC = () => {
             </div>
           </motion.div>
 
+          {/* AI Electrician Energy & Fatigue */}
+          {singleMode.aiElectricianActive && (
+            <motion.div 
+              className="glass-effect px-4 py-2 min-w-[120px]"
+              whileHover={{ scale: 1.05 }}
+              animate={{
+                boxShadow: aiElectrician.energy < 20 ? '0 0 15px #ff4444' :
+                          aiElectrician.energy < 50 ? '0 0 10px #ff8800' :
+                          '0 0 5px rgba(255,255,255,0.2)'
+              }}
+            >
+              <div className="text-xs text-gray-300">ЭНЕРГИЯ</div>
+              <div className={`text-sm font-bold ${
+                aiElectrician.energy < 20 ? 'text-red-400' :
+                aiElectrician.energy < 50 ? 'text-orange-400' :
+                'text-green-400'
+              }`}>
+                {Math.round(aiElectrician.energy)}%
+              </div>
+              
+              {/* Fatigue Level */}
+              <div className="text-xs text-gray-300 mt-1">УСТАЛОСТЬ</div>
+              <div className={`text-xs font-bold ${
+                aiElectrician.fatigueLevel >= 8 ? 'text-red-400' :
+                aiElectrician.fatigueLevel >= 5 ? 'text-orange-400' :
+                aiElectrician.fatigueLevel >= 2 ? 'text-yellow-400' :
+                'text-green-400'
+              }`}>
+                {Math.floor(aiElectrician.fatigueLevel)}/10
+                {aiElectrician.fatigueLevel >= 8 && ' 💎'}
+                {aiElectrician.fatigueLevel >= 5 && aiElectrician.fatigueLevel < 8 && ' 🥇'}
+                {aiElectrician.fatigueLevel >= 2 && aiElectrician.fatigueLevel < 5 && ' 🥈'}
+              </div>
+            </motion.div>
+          )}
+
           <motion.div 
             className="glass-effect px-4 py-2"
             whileHover={{ scale: 1.05 }}
@@ -233,6 +271,32 @@ export const GameHUD: React.FC = () => {
                   />
                 </div>
                 <div className="text-xs text-white">{Math.round(aiElectrician.energy)}%</div>
+              </div>
+
+              {/* Voltage Bar */}
+              <div className="flex flex-col items-center">
+                <div className="text-xs text-gray-300 mb-1">НАПРЯЖЕНИЕ</div>
+                <div className="w-20 h-2 bg-gray-700 rounded-full overflow-hidden">
+                  <motion.div
+                    className={`h-full rounded-full ${
+                      aiElectrician.voltage > 300 ? 'bg-red-500' :
+                      aiElectrician.voltage > 200 ? 'bg-orange-500' :
+                      aiElectrician.voltage > 100 ? 'bg-yellow-500' :
+                      'bg-blue-500'
+                    }`}
+                    initial={{ width: 0 }}
+                    animate={{ 
+                      width: `${(aiElectrician.voltage / aiElectrician.maxVoltage) * 100}%`,
+                      boxShadow: aiElectrician.voltage >= 100 ? '0 0 10px rgba(255, 0, 0, 0.8)' : 'none'
+                    }}
+                    transition={{ duration: 0.5 }}
+                  />
+                </div>
+                <div className={`text-xs font-bold ${
+                  aiElectrician.voltage >= 100 ? 'text-red-400' : 'text-white'
+                }`}>
+                  {Math.round(aiElectrician.voltage)}⚡
+                </div>
               </div>
 
               {/* Equipment Status */}
@@ -343,6 +407,28 @@ export const GameHUD: React.FC = () => {
           </div>
         </motion.div>
       )}
+
+      {/* Protection Shop Button */}
+      <motion.button
+        onClick={() => setShowShop(true)}
+        className="fixed bottom-20 left-4 glass-effect px-4 py-2 text-yellow-400 hover:text-yellow-300"
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.95 }}
+      >
+        <div className="flex items-center gap-2">
+          <span>🛡️</span>
+          <div>
+            <div className="text-sm font-bold">ЗАЩИТА</div>
+            <div className="text-xs">{getTotalProtection().toFixed(1)}%</div>
+          </div>
+        </div>
+      </motion.button>
+
+      {/* Protection Shop Modal */}
+      <ProtectionShop 
+        isOpen={showShop}
+        onClose={() => setShowShop(false)}
+      />
     </div>
   );
 };

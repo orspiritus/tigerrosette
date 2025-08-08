@@ -1,9 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../store/gameStore';
 import { SparkEffect } from '../types/game';
 import { soundManager } from '../utils/soundManager';
 import { hapticManager } from '../utils/hapticManager';
+import { calculateLevel } from '../utils/levelSystem';
 import { ScorePopup } from './ScorePopup';
 import { ElectricSparks } from './ElectricSparks';
 import { SimpleVideoPlayer } from './SimpleVideoPlayer';
@@ -19,6 +20,7 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
     clickOutlet, 
     singleMode, 
     gameState,
+    player,
     updateScore,
     triggerShock
   } = useGameStore();
@@ -50,6 +52,19 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
     console.log('TigerOutlet: Shock video completed');
     setShowShockVideo(false);
   }, []);
+
+  // Force video off after timeout (failsafe)
+  useEffect(() => {
+    if (showShockVideo) {
+      console.log('TigerOutlet: Video started, setting failsafe timeout');
+      const timeout = setTimeout(() => {
+        console.log('TigerOutlet: Failsafe timeout - forcing video off');
+        setShowShockVideo(false);
+      }, 10000); // 10 секунд максимум
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [showShockVideo]);
 
   // Create spark effect on click
   const createSparks = useCallback((intensity: 'low' | 'medium' | 'high' | 'extreme') => {
@@ -139,11 +154,19 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
       isDischarging: singleMode.isDischarging,
       currentRisk: singleMode.currentRisk,
       gameState: gameState.isPlaying,
+      aiElectricianActive: singleMode.aiElectricianActive,
+      nextDischargeTime: singleMode.nextDischargeTime,
+      now: Date.now(),
+      timeUntilDischarge: singleMode.nextDischargeTime - Date.now(),
+      showShockVideo: showShockVideo,
       singleModeState: singleMode
     });
     
     if (isShocked) {
-      console.log('TigerOutlet: Electric shock triggered!');
+      console.log('TigerOutlet: Electric shock triggered!', {
+        currentVideoState: showShockVideo,
+        electricShockActive: isElectricShockActive
+      });
       // Активируем эффект электрического разряда
       setIsElectricShockActive(true);
       setShowShockVideo(true); // Запускаем видео эффект
@@ -163,6 +186,7 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
       
       // Завершаем эффект разряда через 1 секунду
       setTimeout(() => {
+        console.log('TigerOutlet: Disabling electric shock effect');
         setIsElectricShockActive(false);
       }, 1000);
       
@@ -173,13 +197,27 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
           showScorePopup(0, penaltyMessage, 'shock');
           (window as any).lastPenaltyMessage = null;
         } else {
-          // Show consolation prize for lower levels
+          // Balanced penalty for electric shock based on level and risk
+          const currentLevel = calculateLevel(player.experience).level;
+          const basePenalty = currentLevel >= 3 ? -15 : 5; // Штраф для высоких уровней, награда для новичков
+          
+          const riskPenalty = {
+            low: 1.0,
+            medium: 1.5,
+            high: 2.0,
+            extreme: 2.5
+          }[singleMode.currentRisk];
+          
+          const finalPenalty = currentLevel >= 3 ? 
+            Math.floor(basePenalty * riskPenalty) : 
+            basePenalty + Math.floor(Math.random() * 10); // 5-15 очков для новичков
+          
           const scoreData = {
-            basePoints: 8,
-            riskMultiplier: 1,
+            basePoints: basePenalty,
+            riskMultiplier: riskPenalty,
             streakBonus: 0,
             timeBonus: 0,
-            totalPoints: 8 + Math.floor(Math.random() * 17), // 8-25 points
+            totalPoints: finalPenalty,
             reason: 'Поражение током'
           };
           
@@ -202,16 +240,17 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
       // Play spark sound based on intensity
       soundManager.generateSparkSound(intensity);
 
-      // Calculate success score
-      const basePoints = 10;
+      // Calculate success score - More balanced scoring
+      const basePoints = 5; // Уменьшено с 10 до 5
       const riskMultiplier = {
         low: 1.0,
-        medium: 1.5,
-        high: 2.0,
-        extreme: 3.0
+        medium: 2.0,    // Увеличено с 1.5 до 2.0
+        high: 3.5,      // Увеличено с 2.0 до 3.5
+        extreme: 6.0    // Увеличено с 3.0 до 6.0
       }[singleMode.currentRisk];
 
-      const streakBonus = singleMode.streakCount >= 25 ? 3.0 :
+      const streakBonus = singleMode.streakCount >= 50 ? 4.0 :  // Новый уровень
+                         singleMode.streakCount >= 25 ? 3.0 :
                          singleMode.streakCount >= 10 ? 2.0 :
                          singleMode.streakCount >= 5 ? 1.5 : 1.0;
 
@@ -228,17 +267,6 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
 
       updateScore(scoreData);
       showScorePopup(scoreData.totalPoints, scoreData.reason, 'success');
-      
-      // ВРЕМЕННО: для тестирования видео в игре при успешных кликах
-      // TODO: удалить после отладки
-      if (Math.random() < 0.2) { // 20% шанс для тестирования
-        console.log('TigerOutlet: Test video activation on success!');
-        setShowShockVideo(true);
-        setTimeout(() => {
-          console.log('TigerOutlet: Test video timeout on success');
-          setShowShockVideo(false);
-        }, 4000);
-      }
       
       // Дополнительная вибрация для серий достижений
       if (singleMode.streakCount > 0 && singleMode.streakCount % 5 === 0) {
@@ -300,9 +328,6 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
           <SimpleVideoPlayer
             isActive={showShockVideo}
             onComplete={handleShockVideoComplete}
-            intensity={singleMode.currentRisk === 'extreme' ? 'extreme' :
-                       singleMode.currentRisk === 'high' ? 'high' :
-                       singleMode.currentRisk === 'medium' ? 'medium' : 'low'}
           />
         ) : (
           /* Main Outlet Image */
@@ -418,19 +443,6 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
           />
         ))}
       </AnimatePresence>
-
-      {/* Временная кнопка для тестирования видео */}
-      <button 
-        onClick={() => {
-          console.log('Manual video test');
-          setShowShockVideo(true);
-          setTimeout(() => setShowShockVideo(false), 3000);
-        }}
-        className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded text-sm z-50"
-        style={{ zIndex: 1000 }}
-      >
-        Test Video
-      </button>
 
       {/* Risk Level Indicator */}
       <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2">

@@ -11,9 +11,11 @@ import { useGameApi } from '../hooks/useGameApi';
 export const MainMenu: React.FC = () => {
   const { 
     player, 
+    gameState,
     startSingleMode, 
     startMultiplayerMode,
     addExperience,
+    compensateExperience,
     loadStatsFromServer 
   } = useGameStore();
   const { isAuthenticated } = useGameApi();
@@ -49,6 +51,16 @@ export const MainMenu: React.FC = () => {
   // Development helper to test level system
   const handleQuickLevelUp = () => {
     addExperience(100); // Add 100 experience for testing
+  };
+
+  // Function to compensate missing experience
+  const handleCompensateExperience = () => {
+    const compensated = compensateExperience();
+    if (compensated > 0) {
+      console.log(`Compensated ${compensated} experience points`);
+    } else {
+      console.log('No experience compensation needed');
+    }
   };
 
   const handleStartGame = (difficulty: 'easy' | 'medium' | 'hard' | 'extreme') => {
@@ -344,15 +356,27 @@ export const MainMenu: React.FC = () => {
         <p className="mt-2">v1.1.0 | Single Mode + Multiplayer Preview</p>
         
         {/* Development button for testing levels */}
-        <button 
-          onClick={() => {
-            hapticManager.light();
-            handleQuickLevelUp();
-          }}
-          className="mt-2 px-3 py-1 text-xs bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 rounded transition-colors"
-        >
-          🔧 +100 опыта (тест)
-        </button>
+        <div className="flex gap-2 justify-center">
+          <button 
+            onClick={() => {
+              hapticManager.light();
+              handleQuickLevelUp();
+            }}
+            className="px-3 py-1 text-xs bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 rounded transition-colors"
+          >
+            🔧 +100 опыта (тест)
+          </button>
+          
+          <button 
+            onClick={() => {
+              hapticManager.light();
+              handleCompensateExperience();
+            }}
+            className="px-3 py-1 text-xs bg-green-600/30 hover:bg-green-600/50 text-green-300 rounded transition-colors"
+          >
+            ⚡ Восстановить опыт ({gameState.score} очков)
+          </button>
+        </div>
       </motion.div>
     </div>
   );

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { GameStore, GameState, Player, SingleModeState, Achievement, ScoreData, SoundConfig, ShockImpact } from '../types/game';
+import { GameStore, GameState, Player, SingleModeState, Achievement, ScoreData, SoundConfig, ShockImpact, PlayerProtection, ShopItem } from '../types/game';
 import { calculateLevel, getExperienceToNextLevel, EXPERIENCE_REWARDS } from '../utils/levelSystem';
 import { apiClient } from '../utils/apiClient';
 
@@ -25,7 +25,13 @@ const defaultPlayer: Player = {
   luckCoefficient: 50, // Начинаем с 50%
   luckIndicatorHidden: false,
   luckHiddenUntil: 0,
-  survivalTime: 0
+  survivalTime: 0,
+  protection: {
+    gloves: { level: 0, protection: 0, durability: 0, maxDurability: 0 },
+    boots: { level: 0, protection: 0, durability: 0, maxDurability: 0 },
+    suit: { level: 0, protection: 0, durability: 0, maxDurability: 0 },
+    helmet: { level: 0, protection: 0, durability: 0, maxDurability: 0 }
+  }
 };
 
 const defaultSingleMode: SingleModeState = {
@@ -43,7 +49,7 @@ const defaultSingleMode: SingleModeState = {
   nextDischargeTime: 0,
   dischargeWarningTime: 0,
   isDischarging: false,
-  dischargeDuration: 2000 // 2 секунды
+  dischargeDuration: 5000 // 5 секунд - увеличено для большей вероятности попадания
 };
 
 const defaultSounds: SoundConfig = {
@@ -125,6 +131,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     name: 'Иван Электрик',
     energy: 100,
     maxEnergy: 100,
+    voltage: 0,
+    maxVoltage: 500,
+    voltageChargeRate: 2, // вольт в секунду
+    lastAttackTime: 0,
     equipment: {
       battery: 100,
       capacitor: 100,
@@ -138,8 +148,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     messageTime: 0,
     failuresCount: 0,
     successfulDischarges: 0,
+    playerAttacksReceived: 0,
     workingEfficiency: 100,
-    canWork: true
+    canWork: true,
+    fatigueLevel: 0 // Уровень усталости для отслеживания дропа предметов
   },
   levelUpNotification: {
     isVisible: false,
@@ -149,6 +161,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   // Actions
   startSingleMode: (difficulty) => {
+    console.log('startSingleMode: Starting with difficulty:', difficulty);
+    
+    // Исправляем уровень игрока на основе опыта перед началом игры
+    get().fixPlayerLevel();
+    
+    // Компенсируем недостающий опыт на основе очков (единоразово)
+    const compensated = get().compensateExperience();
+    if (compensated > 0) {
+      console.log(`Compensated ${compensated} experience points based on current score`);
+    }
+    
     set({
       gameState: {
         ...get().gameState,
@@ -165,6 +188,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // Запускаем ИИ электрика
     setTimeout(() => {
+      console.log('startSingleMode: Starting AI Electrician after 3s delay');
       get().startAIElectrician();
     }, 3000); // Начинаем через 3 секунды после старта игры
   },
@@ -263,7 +287,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const newVolts = state.player.volts + scoreData.totalPoints;
     
     // Update streak if it was a success
-    const isSuccess = scoreData.reason !== 'Поражение током';
+    const isSuccess = scoreData.reason !== 'Поражение током' && 
+                     scoreData.reason !== 'Клик во время разряда!' &&
+                     scoreData.totalPoints > 0; // Дополнительная проверка на положительные очки
     const newStreak = isSuccess ? state.player.streak + 1 : 0;
     const newStreakCount = isSuccess ? state.singleMode.streakCount + 1 : 0;
     
@@ -286,6 +312,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       if (newStreak === 10) experienceGained += EXPERIENCE_REWARDS.STREAK_10;
       if (newStreak === 25) experienceGained += EXPERIENCE_REWARDS.STREAK_25;
       if (newStreak === 50) experienceGained += EXPERIENCE_REWARDS.STREAK_50;
+      
+      // Бонусный опыт на основе набранных очков (1 опыт за каждые 10 очков)
+      const scoreBonus = Math.floor(Math.max(0, scoreData.totalPoints) / 10);
+      experienceGained += scoreBonus;
     } else {
       // Small experience even for getting shocked
       experienceGained = EXPERIENCE_REWARDS.SHOCK_SURVIVAL;
@@ -375,26 +405,34 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!state.gameState.isPlaying) return;
 
     // Рассчитываем урон на основе накопленных вольт
-    const shockImpact = state.calculateShockImpact(state.player.volts);
+    const baseShockImpact = state.calculateShockImpact(state.player.volts);
+    
+    // Применяем защиту
+    const totalProtection = state.getTotalProtection();
+    const protectionMultiplier = (100 - totalProtection) / 100;
+    const finalDamage = Math.floor(baseShockImpact.damage * protectionMultiplier);
+    
+    // Повреждаем защитное снаряжение
+    state.damageProtection(baseShockImpact.damage);
     
     set({
       player: {
         ...state.player,
-        volts: Math.max(0, state.player.volts - shockImpact.voltsDrained),
+        volts: Math.max(0, state.player.volts - baseShockImpact.voltsDrained),
         shockedClicks: state.player.shockedClicks + 1,
         totalClicks: state.player.totalClicks + 1,
         streak: 0,
         luckIndicatorHidden: true,
-        luckHiddenUntil: Date.now() + shockImpact.luckHideDuration
+        luckHiddenUntil: Date.now() + baseShockImpact.luckHideDuration
       },
       showElectricSparks: true,
-      sparksIntensity: shockImpact.severity === 'critical' ? 'extreme' : 
-                      shockImpact.severity === 'severe' ? 'high' :
-                      shockImpact.severity === 'moderate' ? 'medium' : 'low',
+      sparksIntensity: baseShockImpact.severity === 'critical' ? 'extreme' : 
+                      baseShockImpact.severity === 'severe' ? 'high' :
+                      baseShockImpact.severity === 'moderate' ? 'medium' : 'low',
       showScreenShake: true,
       gameState: {
         ...state.gameState,
-        score: Math.max(0, state.gameState.score - shockImpact.damage)
+        score: Math.max(0, state.gameState.score - finalDamage)
       },
       singleMode: {
         ...state.singleMode,
@@ -408,7 +446,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         showElectricSparks: false,
         showScreenShake: false
       });
-    }, shockImpact.duration);
+    }, baseShockImpact.duration);
 
     // Обновляем коэффициент удачи
     get().updateLuckCoefficient();
@@ -462,8 +500,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const oldLevel = calculateLevel(state.player.experience);
     const newLevel = calculateLevel(newExperience);
     
+    console.log('addExperience:', {
+      amount,
+      oldExperience: state.player.experience,
+      newExperience,
+      oldLevel: oldLevel.level,
+      newLevel: newLevel.level,
+      playerLevel: state.player.level
+    });
+    
     // Check if player leveled up
     if (newLevel.level > oldLevel.level) {
+      console.log('LEVEL UP!', {
+        from: oldLevel.level,
+        to: newLevel.level,
+        voltsReward: newLevel.voltsReward
+      });
+      
       // Player leveled up! Give rewards
       const newVolts = state.player.volts + newLevel.voltsReward;
       
@@ -480,11 +533,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const { showLevelUpNotification } = get();
       showLevelUpNotification(newLevel, newLevel.voltsReward);
     } else {
-      // Just add experience
+      // Just add experience and ensure level is correct
       set({
         player: {
           ...state.player,
-          experience: newExperience
+          experience: newExperience,
+          level: newLevel.level // Всегда обновляем уровень на основе опыта
         }
       });
     }
@@ -496,6 +550,54 @@ export const useGameStore = create<GameStore>((set, get) => ({
       currentLevel: calculateLevel(state.player.experience),
       progressInfo: getExperienceToNextLevel(state.player.experience)
     };
+  },
+
+  // Корректирует уровень игрока на основе текущего опыта
+  fixPlayerLevel: () => {
+    const state = get();
+    const correctLevel = calculateLevel(state.player.experience);
+    
+    console.log('fixPlayerLevel:', {
+      currentStoredLevel: state.player.level,
+      correctLevel: correctLevel.level,
+      experience: state.player.experience
+    });
+    
+    if (state.player.level !== correctLevel.level) {
+      console.log('Fixing player level from', state.player.level, 'to', correctLevel.level);
+      set({
+        player: {
+          ...state.player,
+          level: correctLevel.level
+        }
+      });
+    }
+  },
+
+  // Функция для компенсации недостающего опыта на основе очков (единоразово)
+  compensateExperience: () => {
+    const state = get();
+    const currentScore = state.gameState.score;
+    const currentExperience = state.player.experience;
+    
+    // Рассчитываем сколько опыта должно быть у игрока на основе очков
+    const expectedExperience = Math.floor(currentScore / 5); // 1 опыт за каждые 5 очков
+    const missingExperience = Math.max(0, expectedExperience - currentExperience);
+    
+    console.log('compensateExperience:', {
+      currentScore,
+      currentExperience,
+      expectedExperience,
+      missingExperience
+    });
+    
+    if (missingExperience > 0) {
+      console.log(`Compensating ${missingExperience} experience points`);
+      get().addExperience(missingExperience);
+      return missingExperience;
+    }
+    
+    return 0;
   },
 
   showLevelUpNotification: (level, voltsReward) => {
@@ -542,8 +644,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
   // AI Electrician System
   startAIElectrician: () => {
     const state = get();
-    if (!state.gameState.isPlaying) return;
+    if (!state.gameState.isPlaying) {
+      console.log('startAIElectrician: Game not playing, aborting');
+      return;
+    }
 
+    console.log('startAIElectrician: Starting AI Electrician');
     set({
       singleMode: {
         ...state.singleMode,
@@ -561,6 +667,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const aiUpdateInterval = setInterval(() => {
       const currentState = get();
       if (!currentState.singleMode.aiElectricianActive || !currentState.gameState.isPlaying) {
+        console.log('startAIElectrician: Clearing AI update interval');
         clearInterval(aiUpdateInterval);
         return;
       }
@@ -580,7 +687,155 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }, 2000);
 
     // Планируем первый разряд
+    console.log('startAIElectrician: Scheduling first discharge');
     get().scheduleNextDischarge();
+  },
+
+  // Система дропа предметов от ИИ электрика
+  dropElectricianItem: () => {
+    const state = get();
+    const fatigueLevel = Math.floor(state.aiElectrician.fatigueLevel);
+    
+    // Таблица дропа в зависимости от уровня усталости
+    const getDropTable = (fatigue: number) => {
+      if (fatigue >= 8) {
+        return [
+          { type: 'suit', level: 3, chance: 0.2, message: '🥽 ИИ электрик от усталости снял профессиональный костюм!' },
+          { type: 'gloves', level: 3, chance: 0.3, message: '🧤 ИИ электрик уронил диэлектрические перчатки!' },
+          { type: 'boots', level: 2, chance: 0.3, message: '👢 ИИ электрик оставил диэлектрические сапоги!' },
+          { type: 'helmet', level: 2, chance: 0.2, message: '⛑️ ИИ электрик забыл диэлектрическую каску!' }
+        ];
+      } else if (fatigue >= 5) {
+        return [
+          { type: 'gloves', level: 2, chance: 0.4, message: '🧤 ИИ электрик потерял усиленные перчатки!' },
+          { type: 'boots', level: 2, chance: 0.3, message: '👢 ИИ электрик оставил диэлектрические сапоги!' },
+          { type: 'suit', level: 1, chance: 0.2, message: '🥽 ИИ электрик снял изолирующий костюм!' },
+          { type: 'helmet', level: 1, chance: 0.1, message: '⛑️ ИИ электрик забыл каску!' }
+        ];
+      } else if (fatigue >= 2) {
+        return [
+          { type: 'gloves', level: 1, chance: 0.5, message: '🧤 ИИ электрик уронил резиновые перчатки!' },
+          { type: 'boots', level: 1, chance: 0.3, message: '👢 ИИ электрик оставил резиновые сапоги!' },
+          { type: 'helmet', level: 1, chance: 0.2, message: '⛑️ ИИ электрик забыл защитную каску!' }
+        ];
+      } else {
+        return [
+          { type: 'gloves', level: 1, chance: 0.7, message: '� ИИ электрик уронил рабочие перчатки!' },
+          { type: 'boots', level: 1, chance: 0.3, message: '👢 ИИ электрик потерял сапог!' }
+        ];
+      }
+    };
+    
+    const dropTable = getDropTable(fatigueLevel);
+    
+    // Выбираем случайный предмет на основе шансов
+    const random = Math.random();
+    let cumulativeChance = 0;
+    let selectedItem = null;
+    
+    for (const item of dropTable) {
+      cumulativeChance += item.chance;
+      if (random <= cumulativeChance) {
+        selectedItem = item;
+        break;
+      }
+    }
+    
+    if (!selectedItem) return;
+    
+    const { type, level, message } = selectedItem;
+    const typedType = type as keyof PlayerProtection;
+    
+    // Проверяем, есть ли уже у игрока этот предмет такого же или лучшего уровня
+    const currentItem = state.player.protection[typedType];
+    if (currentItem.level >= level) {
+      console.log('Player already has better protection item:', type, level);
+      // Даем вольты вместо предмета
+      const voltBonus = level * 25;
+      set({
+        player: {
+          ...state.player,
+          volts: state.player.volts + voltBonus
+        },
+        aiElectrician: {
+          ...state.aiElectrician,
+          lastMessage: `💰 ИИ электрик дал ${voltBonus} вольт вместо ненужного предмета!`,
+          messageTime: Date.now()
+        }
+      });
+      return;
+    }
+    
+    // Получаем характеристики предмета из магазина
+    const shopItems = state.getShopItems();
+    const itemStats = shopItems.find(item => item.type === typedType && item.level === level);
+    
+    if (!itemStats) {
+      console.error('Item stats not found for:', type, level);
+      return;
+    }
+    
+    // Даем предмет игроку
+    set({
+      player: {
+        ...state.player,
+        protection: {
+          ...state.player.protection,
+          [typedType]: {
+            level: itemStats.level,
+            protection: itemStats.protection,
+            durability: itemStats.durability,
+            maxDurability: itemStats.durability
+          }
+        }
+      },
+      aiElectrician: {
+        ...state.aiElectrician,
+        lastMessage: message,
+        messageTime: Date.now()
+      }
+    });
+    
+    console.log(`Dropped item: ${itemStats.name} (${itemStats.protection}% protection) at fatigue level ${fatigueLevel}`);
+    
+    // Даем бонусный опыт за находку (больше за лучшие предметы)
+    const expBonus = 25 * level;
+    get().addExperience(expBonus);
+  },
+
+  // Перезапуск ИИ электрика если он был отключен
+  restartAIElectrician: () => {
+    const state = get();
+    if (!state.gameState.isPlaying) {
+      console.log('restartAIElectrician: Game not playing');
+      return;
+    }
+    
+    if (state.aiElectrician.isActive) {
+      console.log('restartAIElectrician: AI already active');
+      return;
+    }
+    
+    console.log('restartAIElectrician: Restarting AI Electrician');
+    
+    // Восстанавливаем энергию и частично чиним оборудование
+    set({
+      aiElectrician: {
+        ...state.aiElectrician,
+        energy: Math.max(50, state.aiElectrician.energy), // Минимум 50 энергии
+        equipment: {
+          battery: Math.max(50, state.aiElectrician.equipment.battery),
+          capacitor: Math.max(50, state.aiElectrician.equipment.capacitor), 
+          wires: Math.max(50, state.aiElectrician.equipment.wires),
+          generator: Math.max(50, state.aiElectrician.equipment.generator)
+        },
+        lastMessage: 'Отдохнул, снова готов к работе!',
+        messageTime: Date.now()
+      }
+    });
+    
+    // Запускаем ИИ
+    get().startAIElectrician();
   },
 
   stopAIElectrician: () => {
@@ -603,6 +858,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   scheduleNextDischarge: () => {
     const state = get();
+    console.log('scheduleNextDischarge: Starting, AI active:', state.singleMode.aiElectricianActive);
     if (!state.singleMode.aiElectricianActive) return;
 
     const now = Date.now();
@@ -610,10 +866,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // Рассчитываем интервал до следующего разряда на основе сложности и AI паттерна
     const getDischargeInterval = () => {
       const baseInterval = {
-        easy: { min: 8000, max: 15000 },    // 8-15 секунд
-        medium: { min: 6000, max: 12000 },  // 6-12 секунд  
-        hard: { min: 4000, max: 9000 },     // 4-9 секунд
-        extreme: { min: 3000, max: 7000 }   // 3-7 секунд
+        easy: { min: 3000, max: 8000 },     // 3-8 секунд - уменьшено для большей частоты
+        medium: { min: 2500, max: 6000 },   // 2.5-6 секунд  
+        hard: { min: 2000, max: 4000 },     // 2-4 секунды
+        extreme: { min: 1500, max: 3000 }   // 1.5-3 секунды
       }[state.singleMode.difficulty];
 
       // Модификация на основе AI паттерна
@@ -635,6 +891,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const nextDischargeTime = now + interval;
     const dischargeWarningTime = nextDischargeTime - 3000; // Предупреждение за 3 секунды
 
+    console.log('scheduleNextDischarge: Scheduled discharge', {
+      interval: interval / 1000 + 's',
+      nextDischargeTime,
+      dischargeWarningTime,
+      timeFromNow: (nextDischargeTime - now) / 1000 + 's'
+    });
+
     set({
       singleMode: {
         ...state.singleMode,
@@ -645,18 +908,34 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // Планируем следующую проверку
     setTimeout(() => {
+      console.log('scheduleNextDischarge: Timer triggered, checking discharge');
       get().checkForDischarge();
     }, interval);
   },
 
   checkForDischarge: () => {
     const state = get();
-    if (!state.singleMode.aiElectricianActive || !state.gameState.isPlaying) return;
+    if (!state.singleMode.aiElectricianActive || !state.gameState.isPlaying) {
+      console.log('checkForDischarge: AI inactive or game not playing', { 
+        aiActive: state.singleMode.aiElectricianActive, 
+        isPlaying: state.gameState.isPlaying 
+      });
+      return;
+    }
 
     const now = Date.now();
+    console.log('checkForDischarge: Checking discharge timing', {
+      now,
+      nextDischargeTime: state.singleMode.nextDischargeTime,
+      timeUntilDischarge: state.singleMode.nextDischargeTime - now,
+      isDischarging: state.singleMode.isDischarging,
+      warningSignsActive: state.singleMode.warningSignsActive,
+      dischargeWarningTime: state.singleMode.dischargeWarningTime
+    });
 
     // Проверяем, не пора ли показать предупреждение
     if (!state.singleMode.warningSignsActive && now >= state.singleMode.dischargeWarningTime) {
+      console.log('checkForDischarge: Activating warning signs');
       set({
         singleMode: {
           ...state.singleMode,
@@ -668,6 +947,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // Проверяем, не пора ли начать разряд
     if (now >= state.singleMode.nextDischargeTime && !state.singleMode.isDischarging) {
+      console.log('checkForDischarge: STARTING DISCHARGE!');
       // Начинаем разряд
       set({
         singleMode: {
@@ -695,6 +975,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
       // Завершаем разряд через dischargeDuration
       setTimeout(() => {
+        console.log('checkForDischarge: ENDING DISCHARGE after', state.singleMode.dischargeDuration, 'ms');
         const currentState = get();
         set({
           singleMode: {
@@ -709,11 +990,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
         // Обновляем состояние ИИ электрика
         get().updateAIElectrician();
 
-        // Планируем следующий разряд только если ИИ может работать
+        // Планируем следующий разряд с учетом состояния ИИ
         if (get().aiElectrician.canWork) {
+          console.log('checkForDischarge: Scheduling next discharge after ending current one');
           get().scheduleNextDischarge();
         } else {
-          // ИИ электрик сломался
+          // ИИ электрик устал или сломался, но НЕ отключается полностью
+          console.log('checkForDischarge: AI electrician is tired/broken, scheduling with delay');
           set({
             aiElectrician: {
               ...get().aiElectrician,
@@ -721,7 +1004,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
               messageTime: Date.now()
             }
           });
-          get().stopAIElectrician();
+          
+          // Планируем следующий разряд с большой задержкой (30 секунд)
+          setTimeout(() => {
+            if (get().singleMode.aiElectricianActive && get().gameState.isPlaying) {
+              console.log('checkForDischarge: Tired AI attempting to work again');
+              get().scheduleNextDischarge();
+            }
+          }, 30000);
         }
       }, state.singleMode.dischargeDuration);
     }
@@ -730,13 +1020,54 @@ export const useGameStore = create<GameStore>((set, get) => ({
   // AI Electrician management methods
   updateAIElectrician: () => {
     const state = get();
-    if (!state.aiElectrician.isActive) return;
+    if (!state.aiElectrician.isActive) {
+      console.log('updateAIElectrician: AI not active, skipping');
+      return;
+    }
 
     const ai = state.aiElectrician;
+    const now = Date.now();
+
+    console.log('updateAIElectrician: Current state', {
+      energy: ai.energy.toFixed(1),
+      voltage: ai.voltage.toFixed(1),
+      efficiency: ai.workingEfficiency.toFixed(1),
+      mood: ai.mood,
+      canWork: ai.canWork
+    });
 
     // Постепенное снижение энергии во время работы
     const energyDrain = ai.workingEfficiency > 80 ? 0.1 : 0.2;
-    const newEnergy = Math.max(0, ai.energy - energyDrain);
+    let newEnergy = Math.max(0, ai.energy - energyDrain);
+    
+    // Система усталости - увеличивается когда энергия низкая
+    let newFatigueLevel = ai.fatigueLevel;
+    const wasEnergyLow = ai.energy > 10;
+    const isEnergyLow = newEnergy <= 10;
+    
+    // Увеличиваем усталость когда энергия опускается ниже 10
+    if (isEnergyLow && wasEnergyLow) {
+      newFatigueLevel = Math.min(10, ai.fatigueLevel + 0.1);
+    }
+    
+    // Постепенное восстановление энергии если она очень низкая (автоматический отдых)
+    if (isEnergyLow) {
+      newEnergy = Math.min(ai.maxEnergy, newEnergy + 0.5); // Медленное восстановление
+      console.log('updateAIElectrician: AI resting, energy recovery:', newEnergy.toFixed(1));
+      
+      // Проверяем переход на новый уровень усталости и дроп предметов
+      if (Math.floor(newFatigueLevel) > Math.floor(ai.fatigueLevel) && Math.random() < 0.5) {
+        console.log(`AI fatigue level increased to ${Math.floor(newFatigueLevel)}, dropping item`);
+        get().dropElectricianItem();
+      }
+    } else if (newEnergy > 50) {
+      // Снижаем усталость когда энергия восстанавливается
+      newFatigueLevel = Math.max(0, ai.fatigueLevel - 0.05);
+    }
+
+    // Накопление напряжения для атак
+    const voltageGain = ai.voltageChargeRate * (ai.workingEfficiency / 100);
+    const newVoltage = Math.min(ai.maxVoltage, ai.voltage + voltageGain);
 
     // Износ оборудования
     const equipmentWear = Math.random() * 0.05; // 0-5% износа
@@ -746,10 +1077,22 @@ export const useGameStore = create<GameStore>((set, get) => ({
       wires: Math.max(0, ai.equipment.wires - equipmentWear * 0.3),
       generator: Math.max(0, ai.equipment.generator - equipmentWear * 0.7)
     };
-
-    // Расчет эффективности работы
+    
+    // Расчет среднего состояния оборудования
     const avgEquipment = (newEquipment.battery + newEquipment.capacitor + 
                           newEquipment.wires + newEquipment.generator) / 4;
+    
+    // Автоматическое самовосстановление оборудования (медленно)
+    if (avgEquipment < 30) {
+      const selfRepair = 0.1; // Очень медленное самовосстановление
+      newEquipment.battery = Math.min(100, newEquipment.battery + selfRepair);
+      newEquipment.capacitor = Math.min(100, newEquipment.capacitor + selfRepair);
+      newEquipment.wires = Math.min(100, newEquipment.wires + selfRepair);
+      newEquipment.generator = Math.min(100, newEquipment.generator + selfRepair);
+      console.log('updateAIElectrician: Equipment self-repair activated');
+    }
+
+    // Расчет эффективности работы
     const newEfficiency = Math.min(100, (newEnergy * 0.7) + (avgEquipment * 0.3));
 
     // Определение настроения
@@ -757,36 +1100,79 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (newEfficiency < 20) newMood = 'broken';
     else if (newEfficiency < 40) newMood = 'tired';
     else if (ai.failuresCount > ai.successfulDischarges) newMood = 'frustrated';
+    else if (ai.playerAttacksReceived > 3) newMood = 'angry'; // Злится от атак игрока
     else if (newEfficiency > 80) newMood = 'confident';
-    else newMood = 'angry';
 
     // Может ли работать
     const canWork = newEnergy > 10 && avgEquipment > 15;
+
+    // Проверяем, нужно ли атаковать игрока
+    const shouldAttackPlayer = newVoltage >= 100 && // Достаточно напряжения
+                              (ai.playerAttacksReceived > 2 || // Много атак от игрока
+                               newMood === 'angry' || // Злое настроение
+                               Math.random() < 0.05); // 5% случайная вероятность
+
+    if (shouldAttackPlayer && now - ai.lastAttackTime > 30000) { // Минимум 30 секунд между атаками
+      setTimeout(() => {
+        get().aiElectricianAttackPlayer();
+      }, Math.random() * 5000); // Атака через 0-5 секунд
+    }
 
     set({
       aiElectrician: {
         ...ai,
         energy: newEnergy,
+        voltage: newVoltage,
         equipment: newEquipment,
         workingEfficiency: newEfficiency,
         mood: newMood,
-        canWork
+        canWork,
+        fatigueLevel: newFatigueLevel
       }
     });
   },
 
-  damageAIElectrician: (damageType: 'energy' | 'equipment', amount = 10) => {
+  damageAIElectrician: (damageType: 'energy' | 'equipment', amount = 10, isPlayerAttack = false) => {
     const state = get();
     const ai = state.aiElectrician;
 
     if (damageType === 'energy') {
       const newEnergy = Math.max(0, ai.energy - amount);
+      
+      let message: string;
+      if (isPlayerAttack) {
+        // Смешные сообщения когда игрок атакует
+        const playerAttackMessages = [
+          'Ой! Да ты что, обалдел?! 😱',
+          'Эй, это больно! Мы же команда! 😭',
+          'Предательство! А я думал мы друзья... 💔',
+          'Ауууу! За что меня?! 😵',
+          'Ну и зачем ты меня шарахнул?! ⚡',
+          'Больно же! Я ведь стараюсь для тебя! 😢',
+          'Мама дорогая! Меня ударило током! 🤕',
+          'Это что, месть за разряды?! 😤',
+          'Ладно-ладно, я понял намек... 😅',
+          'Ай-ай-ай! Теперь у меня всё болит! 🤒',
+          'Обидно! Я же честно работаю! 😭',
+          'Ты серьезно?! Я же электрик, а не мишень! 🎯',
+          'Больше так не делай, договорились? 🥺',
+          'Кто научил тебя так драться?! 😰',
+          'Ну вот, теперь у меня мигрень... 🤕',
+          'Так, теперь я разозлился! Готовься к ответке! 😠',
+          'Больно! Но ничего, я тебе это припомню... 😈'
+        ];
+        message = playerAttackMessages[Math.floor(Math.random() * playerAttackMessages.length)];
+      } else {
+        message = newEnergy <= 0 ? 'Энергия кончилась! Нужен отдых...' : 'Ауч! Меня ударило током!';
+      }
+      
       set({
         aiElectrician: {
           ...ai,
           energy: newEnergy,
           failuresCount: ai.failuresCount + 1,
-          lastMessage: newEnergy <= 0 ? 'Энергия кончилась! Нужен отдых...' : 'Ауч! Меня ударило током!',
+          playerAttacksReceived: isPlayerAttack ? ai.playerAttacksReceived + 1 : ai.playerAttacksReceived,
+          lastMessage: message,
           messageTime: Date.now()
         }
       });
@@ -800,14 +1186,37 @@ export const useGameStore = create<GameStore>((set, get) => ({
         [randomEquipment]: Math.max(0, ai.equipment[randomEquipment] - amount)
       };
 
+      let message: string;
+      if (isPlayerAttack) {
+        // Смешные сообщения о поломке оборудования от игрока
+        const equipmentDamageMessages = [
+          `Ты сломал мой ${randomEquipment === 'battery' ? 'аккумулятор' : 
+                          randomEquipment === 'capacitor' ? 'конденсатор' :
+                          randomEquipment === 'wires' ? 'провода' : 'генератор'}! Теперь что делать?! 😱`,
+          `Поломка! Мой ${randomEquipment === 'battery' ? 'аккумулятор' : 
+                          randomEquipment === 'capacitor' ? 'конденсатор' :
+                          randomEquipment === 'wires' ? 'провода' : 'генератор'} дымится! 💨`,
+          `О нет! Без ${randomEquipment === 'battery' ? 'аккумулятора' : 
+                        randomEquipment === 'capacitor' ? 'конденсатора' :
+                        randomEquipment === 'wires' ? 'проводов' : 'генератора'} я не смогу работать! 😭`,
+          `Ты же понимаешь, что ${randomEquipment === 'battery' ? 'аккумулятор' : 
+                                  randomEquipment === 'capacitor' ? 'конденсатор' :
+                                  randomEquipment === 'wires' ? 'провода' : 'генератор'} стоит денег?! 💸`,
+          'Вот это ты меня достал! Теперь ремонтировать придется... 🔧'
+        ];
+        message = equipmentDamageMessages[Math.floor(Math.random() * equipmentDamageMessages.length)];
+      } else {
+        message = `Сломался ${randomEquipment === 'battery' ? 'аккумулятор' : 
+                               randomEquipment === 'capacitor' ? 'конденсатор' :
+                               randomEquipment === 'wires' ? 'провода' : 'генератор'}!`;
+      }
+
       set({
         aiElectrician: {
           ...ai,
           equipment: newEquipment,
           failuresCount: ai.failuresCount + 1,
-          lastMessage: `Сломался ${randomEquipment === 'battery' ? 'аккумулятор' : 
-                                    randomEquipment === 'capacitor' ? 'конденсатор' :
-                                    randomEquipment === 'wires' ? 'провода' : 'генератор'}!`,
+          lastMessage: message,
           messageTime: Date.now()
         }
       });
@@ -864,6 +1273,92 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     get().updateAIElectrician();
+  },
+
+  aiElectricianAttackPlayer: () => {
+    const state = get();
+    const ai = state.aiElectrician;
+    
+    if (!ai.isActive || ai.voltage < 100) return;
+
+    console.log('AI Electrician attacking player!', {
+      aiVoltage: ai.voltage,
+      playerVolts: state.player.volts
+    });
+
+    // Рассчитываем урон от атаки ИИ
+    const baseDamage = 20;
+    const voltageDamage = Math.floor(ai.voltage / 20); // 1 урон за каждые 20 вольт
+    const totalDamage = baseDamage + voltageDamage;
+    
+    // Сообщения для атаки
+    const attackMessages = [
+      `Получай! ${ai.voltage} вольт прямо в тебя! ⚡😈`,
+      `А вот и ответка за твои выходки! ${ai.voltage}В! 💀`,
+      `Думал я не отвечу? Вот тебе ${ai.voltage} вольт! ⚡😤`,
+      `Месть электрика! ${ai.voltage} вольт возмездия! ⚡👿`,
+      `Получи разряд в ${ai.voltage}В! Это тебе урок! 😠⚡`,
+      `Вот что бывает с теми, кто нападает на электрика! ${ai.voltage}В! 💥`,
+      `Ответный удар! ${ai.voltage} вольт прямо в цель! ⚡🎯`,
+      `Хватит меня трогать! Держи ${ai.voltage} вольт! 😡⚡`,
+    ];
+
+    // ВАЖНО: Устанавливаем флаг разряда для корректной работы TigerOutlet
+    set({
+      singleMode: {
+        ...state.singleMode,
+        isDischarging: true,
+        warningSignsActive: true,
+        dangerLevel: 100
+      }
+    });
+
+    // Обновляем состояние ИИ
+    set({
+      aiElectrician: {
+        ...ai,
+        voltage: 0, // Обнуляем напряжение после атаки
+        lastAttackTime: Date.now(),
+        lastMessage: attackMessages[Math.floor(Math.random() * attackMessages.length)],
+        messageTime: Date.now(),
+        playerAttacksReceived: Math.max(0, ai.playerAttacksReceived - 1) // Уменьшаем счетчик атак
+      }
+    });
+
+    // Наносим урон игроку (отнимаем вольты)
+    const newPlayerVolts = Math.max(0, state.player.volts - totalDamage);
+    
+    set({
+      player: {
+        ...state.player,
+        volts: newPlayerVolts
+      }
+    });
+
+    // Эффекты атаки
+    set({
+      showElectricSparks: true,
+      sparksIntensity: 'extreme'
+    });
+
+    // Завершаем разряд через 3 секунды
+    setTimeout(() => {
+      set({
+        showElectricSparks: false,
+        singleMode: {
+          ...get().singleMode,
+          isDischarging: false,
+          warningSignsActive: false,
+          dangerLevel: 0
+        }
+      });
+      
+      // ВАЖНО: Перезапускаем планирование обычных разрядов после атаки ИИ
+      if (get().singleMode.aiElectricianActive && get().gameState.isPlaying) {
+        console.log('AI attack complete, restarting discharge scheduling');
+        get().scheduleNextDischarge();
+      }
+    }, 3000);
   },
 
   getAIElectricianMessage: () => {
@@ -1056,6 +1551,94 @@ export const useGameStore = create<GameStore>((set, get) => ({
       console.error('Error loading stats from server:', errorMessage);
       return { success: false, error: errorMessage };
     }
+  },
+
+  // Protection shop functions
+  buyProtectionItem: (type: keyof PlayerProtection, level: number) => {
+    const shopItems = get().getShopItems();
+    const item = shopItems.find(item => item.type === type && item.level === level);
+    if (!item) return false;
+
+    const currentPlayer = get().player;
+    if (currentPlayer.volts < item.price) return false;
+
+    set((state) => ({
+      player: {
+        ...state.player,
+        volts: state.player.volts - item.price,
+        protection: {
+          ...state.player.protection,
+          [type]: {
+            level: item.level,
+            protection: item.protection,
+            durability: item.durability,
+            maxDurability: item.durability
+          }
+        }
+      }
+    }));
+
+    return true;
+  },
+
+  getShopItems: (): ShopItem[] => {
+    return [
+      // Перчатки
+      { id: 'gloves-1', type: 'gloves', level: 1, protection: 10, price: 50, durability: 100, name: 'Резиновые перчатки', description: 'Базовая защита от небольших разрядов', icon: '🧤' },
+      { id: 'gloves-2', type: 'gloves', level: 2, protection: 20, price: 150, durability: 200, name: 'Усиленные перчатки', description: 'Улучшенная изоляция для средних разрядов', icon: '🧤' },
+      { id: 'gloves-3', type: 'gloves', level: 3, protection: 35, price: 400, durability: 300, name: 'Диэлектрические перчатки', description: 'Профессиональная защита от высокого напряжения', icon: '🧤' },
+      
+      // Сапоги
+      { id: 'boots-1', type: 'boots', level: 1, protection: 15, price: 80, durability: 150, name: 'Резиновые сапоги', description: 'Защита ног от заземления', icon: '👢' },
+      { id: 'boots-2', type: 'boots', level: 2, protection: 25, price: 200, durability: 250, name: 'Диэлектрические сапоги', description: 'Улучшенная изоляция от земли', icon: '👢' },
+      { id: 'boots-3', type: 'boots', level: 3, protection: 40, price: 500, durability: 350, name: 'Профессиональные сапоги', description: 'Максимальная защита от заземления', icon: '👢' },
+      
+      // Костюм
+      { id: 'suit-1', type: 'suit', level: 1, protection: 20, price: 200, durability: 120, name: 'Изолирующий костюм', description: 'Защита тела от электрических разрядов', icon: '🥽' },
+      { id: 'suit-2', type: 'suit', level: 2, protection: 35, price: 500, durability: 200, name: 'Защитный костюм', description: 'Усиленная защита всего тела', icon: '🥽' },
+      { id: 'suit-3', type: 'suit', level: 3, protection: 50, price: 1000, durability: 300, name: 'Профессиональный костюм', description: 'Максимальная защита для электриков', icon: '🥽' },
+      
+      // Шлем
+      { id: 'helmet-1', type: 'helmet', level: 1, protection: 10, price: 100, durability: 200, name: 'Защитная каска', description: 'Защита головы от ударов током', icon: '⛑️' },
+      { id: 'helmet-2', type: 'helmet', level: 2, protection: 20, price: 300, durability: 300, name: 'Диэлектрическая каска', description: 'Улучшенная защита головы', icon: '⛑️' },
+      { id: 'helmet-3', type: 'helmet', level: 3, protection: 30, price: 600, durability: 400, name: 'Профессиональная каска', description: 'Максимальная защита головы', icon: '⛑️' }
+    ];
+  },
+
+  getTotalProtection: (): number => {
+    const protection = get().player.protection;
+    let total = 0;
+    
+    Object.values(protection).forEach(item => {
+      if (item.durability > 0) {
+        // Защита снижается при износе
+        const durabilityRatio = item.durability / item.maxDurability;
+        total += item.protection * durabilityRatio;
+      }
+    });
+    
+    return Math.min(total, 80); // Максимум 80% защиты
+  },
+
+  damageProtection: (damage: number) => {
+    set((state) => {
+      const newProtection = { ...state.player.protection };
+      
+      // Случайно повреждаем защиту при ударе тока
+      Object.keys(newProtection).forEach(key => {
+        const item = newProtection[key as keyof PlayerProtection];
+        if (item.durability > 0 && Math.random() < 0.3) { // 30% шанс повреждения
+          item.durability = Math.max(0, item.durability - Math.floor(damage / 4));
+        }
+      });
+      
+      return {
+        player: {
+          ...state.player,
+          protection: newProtection
+        }
+      };
+    });
   }
 }));
 

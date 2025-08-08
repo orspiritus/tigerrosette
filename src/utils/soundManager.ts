@@ -152,6 +152,24 @@ export class SoundManager {
     source.start();
   }
 
+  // Загружает и воспроизводит звук тигра при электрическом разряде
+  async playTigerSound(): Promise<void> {
+    if (!this.enabled) return;
+
+    try {
+      // Используем HTML5 Audio для простоты загрузки и воспроизведения
+      const audio = new Audio('/tigerrosette/Media/sound/re_-tigra.mp3');
+      audio.volume = this.volume * 0.8; // Немного тише основного уровня
+      audio.preload = 'auto';
+      
+      // Воспроизводим звук
+      await audio.play();
+      console.log('SoundManager: Tiger sound played successfully');
+    } catch (error) {
+      console.warn('Failed to play tiger sound:', error);
+    }
+  }
+
   setVolume(volume: number): void {
     this.volume = Math.max(0, Math.min(1, volume));
   }

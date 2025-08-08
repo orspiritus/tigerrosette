@@ -21,6 +21,36 @@ export interface Player {
   luckIndicatorHidden: boolean; // Скрыт ли индикатор удачи
   luckHiddenUntil: number; // Время до которого скрыт индикатор (timestamp)
   survivalTime: number;
+  protection: PlayerProtection; // Защитные средства
+}
+
+// Защитные средства игрока
+export interface PlayerProtection {
+  gloves: ProtectionItem; // Перчатки
+  boots: ProtectionItem; // Ботинки
+  suit: ProtectionItem; // Костюм
+  helmet: ProtectionItem; // Шлем
+}
+
+// Элемент защиты
+export interface ProtectionItem {
+  level: number; // Уровень защиты (0-5)
+  protection: number; // Процент защиты от урона (0-95%)
+  durability: number; // Прочность (0-100%)
+  maxDurability: number; // Максимальная прочность
+}
+
+// Предмет в магазине
+export interface ShopItem {
+  id: string;
+  name: string;
+  description: string;
+  type: 'gloves' | 'boots' | 'suit' | 'helmet';
+  level: number;
+  protection: number;
+  durability: number;
+  price: number;
+  icon: string;
 }
 
 // AI Electrician System
@@ -28,6 +58,10 @@ export interface AIElectrician {
   name: string; // Имя электрика
   energy: number; // Энергия (0-100)
   maxEnergy: number; // Максимальная энергия
+  voltage: number; // Накопленное напряжение для атак
+  maxVoltage: number; // Максимальное напряжение
+  voltageChargeRate: number; // Скорость набора напряжения
+  lastAttackTime: number; // Время последней атаки на игрока
   equipment: {
     battery: number; // Состояние аккумулятора (0-100)
     capacitor: number; // Состояние конденсатора (0-100)
@@ -41,8 +75,10 @@ export interface AIElectrician {
   messageTime: number; // Время последнего сообщения
   failuresCount: number; // Количество неудач
   successfulDischarges: number; // Успешные разряды
+  playerAttacksReceived: number; // Получено атак от игрока
   workingEfficiency: number; // Эффективность работы (0-100%)
   canWork: boolean; // Может ли работать (зависит от энергии и оборудования)
+  fatigueLevel: number; // Уровень усталости (0-10) для отслеживания дропа предметов
 }
 
 // Single Mode Types
@@ -150,23 +186,34 @@ export interface GameStore {
   // AI Electrician System
   startAIElectrician: () => void;
   stopAIElectrician: () => void;
+  restartAIElectrician: () => void;
   scheduleNextDischarge: () => void;
   checkForDischarge: () => void;
   updateAIElectrician: () => void;
-  damageAIElectrician: (damageType: 'energy' | 'equipment', amount?: number) => void;
+  damageAIElectrician: (damageType: 'energy' | 'equipment', amount?: number, isPlayerAttack?: boolean) => void;
+  aiElectricianAttackPlayer: () => void;
   repairAIElectrician: (repairType: 'energy' | 'equipment') => void;
+  dropElectricianItem: () => void;
   getAIElectricianMessage: () => string;
   
   endGame: () => void;
   unlockAchievement: (achievementId: string) => void;
   updatePlayerStats: (stats: Partial<Player>) => void;
   addExperience: (amount: number) => void;
+  fixPlayerLevel: () => void;
+  compensateExperience: () => number;
   getCurrentLevelInfo: () => {
     currentLevel: any;
     progressInfo: any;
   };
   showLevelUpNotification: (level: any, voltsReward: number) => void;
   hideLevelUpNotification: () => void;
+  
+  // Shop system
+  buyProtectionItem: (type: keyof PlayerProtection, level: number) => boolean;
+  getShopItems: () => ShopItem[];
+  getTotalProtection: () => number;
+  damageProtection: (damage: number) => void;
   
   // API integration methods
   submitGameToServer: () => Promise<{ success: boolean; error?: string }>;

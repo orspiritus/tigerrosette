@@ -7,6 +7,7 @@ import { DuelScreen } from './components/DuelScreen';
 import { DuelInviteScreen } from './components/DuelInviteScreen';
 import { DuelInviteReceiver } from './components/DuelInviteReceiver';
 import { LevelUpNotification } from './components/LevelUpNotification';
+import { ItemDropNotification } from './components/ItemDropNotification';
 import { TelegramProvider } from './components/TelegramProvider';
 
 function App() {
@@ -60,6 +61,9 @@ function App() {
         
         {/* Глобальный компонент для получения приглашений */}
         <DuelInviteReceiver />
+        
+        {/* Item Drop Notification - Global */}
+        <ItemDropNotification />
         
         {/* Level Up Notification - Global */}
         {levelUpNotification.level && (

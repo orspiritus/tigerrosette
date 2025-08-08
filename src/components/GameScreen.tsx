@@ -2,8 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useGameStore } from '../store/gameStore';
 import { TigerOutlet } from './TigerOutlet';
+import { CounterAttackButton } from './CounterAttackButton';
 import { GameHUD } from './GameHUD';
-import { VideoTestButton } from './VideoTestButton';
 import { useGameApi } from '../hooks/useGameApi';
 import { ScreenShake } from './ScreenShake';
 
@@ -161,7 +161,6 @@ export const GameScreen: React.FC = () => {
   return (
     <>
       <ScreenShake isActive={isScreenShaking} />
-      <VideoTestButton />
       <div className="min-h-screen bg-gradient-to-br from-background-dark to-background-darker relative">
       {/* Game HUD */}
       <GameHUD />
@@ -183,8 +182,17 @@ export const GameScreen: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* Tiger Outlet - Main Game Element */}
-        <TigerOutlet className="mb-8" onShock={handleShockEffect} />
+        {/* Tiger Outlet and Counter Attack - Main Game Elements */}
+        <div className="relative flex items-center justify-center space-x-8 mb-8">
+          {/* Counter Attack Button */}
+          <CounterAttackButton className="order-1" />
+          
+          {/* Tiger Outlet - Main Game Element */}
+          <TigerOutlet className="order-2" onShock={handleShockEffect} />
+          
+          {/* Placeholder for symmetry */}
+          <div className="w-16 h-16 order-3 opacity-0" />
+        </div>
 
         {/* Quick Stats */}
         <div className="flex space-x-4 text-center">
