@@ -160,6 +160,19 @@ export const GameHUD: React.FC = () => {
                           '0 0 5px rgba(255,255,255,0.2)'
               }}
             >
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs text-gray-300">ЭТАП</div>
+                  <div className="text-sm font-bold text-cyan-300">{singleMode.stage || 1}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-gray-300">ОЧКИ ИИ</div>
+                  <div className="text-sm font-bold text-cyan-200">
+                    {Math.max(0, Math.floor((aiElectrician.points ?? 0)))} / {Math.max(1, Math.floor((aiElectrician.maxPoints ?? 0)))}
+                  </div>
+                </div>
+              </div>
+
               <div className="text-xs text-gray-300">ЭНЕРГИЯ</div>
               <div className={`text-sm font-bold ${
                 aiElectrician.energy < 20 ? 'text-red-400' :

@@ -79,6 +79,9 @@ export interface AIElectrician {
   workingEfficiency: number; // Эффективность работы (0-100%)
   canWork: boolean; // Может ли работать (зависит от энергии и оборудования)
   fatigueLevel: number; // Уровень усталости (0-10) для отслеживания дропа предметов
+  // Соревновательная система очков ИИ
+  points: number; // Текущие очки ИИ (обнуляются при переходе на следующий уровень/этап)
+  maxPoints: number; // Максимум очков ИИ на текущем этапе
 }
 
 // Single Mode Types
@@ -91,6 +94,8 @@ export interface SingleModeState {
   lastClickTime: number;
   dangerLevel: number; // Уровень опасности (0-100%)
   warningSignsActive: boolean; // Активны ли предупреждающие знаки
+  // Этап/уровень игры (отличается от уровня опыта игрока)
+  stage: number;
   
   // AI Electrician System
   aiElectricianActive: boolean; // Активен ли ИИ электрик
@@ -208,6 +213,10 @@ export interface GameStore {
   };
   showLevelUpNotification: (level: any, voltsReward: number) => void;
   hideLevelUpNotification: () => void;
+  // Stage & AI points helpers
+  getAIMaxPointsForStage: (stage: number) => number;
+  onAIPointsChanged: () => void;
+  advanceStage: () => void;
   
   // Shop system
   buyProtectionItem: (type: keyof PlayerProtection, level: number) => boolean;

@@ -43,6 +43,7 @@ const defaultSingleMode: SingleModeState = {
   lastClickTime: 0,
   dangerLevel: 0,
   warningSignsActive: false,
+  stage: 1,
   
   // AI Electrician System
   aiElectricianActive: false,
@@ -151,7 +152,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     playerAttacksReceived: 0,
     workingEfficiency: 100,
     canWork: true,
-    fatigueLevel: 0 // Уровень усталости для отслеживания дропа предметов
+    fatigueLevel: 0, // Уровень усталости для отслеживания дропа предметов
+    points: 0,
+    maxPoints: 0
   },
   levelUpNotification: {
     isVisible: false,
@@ -185,6 +188,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
         difficulty
       }
     });
+
+    // Инициализируем очки ИИ на старте этапа
+    set(state => ({
+      aiElectrician: {
+        ...state.aiElectrician,
+        points: get().getAIMaxPointsForStage((get().singleMode.stage) || 1),
+        maxPoints: get().getAIMaxPointsForStage((get().singleMode.stage) || 1)
+      }
+    }));
 
     // Запускаем ИИ электрика
     setTimeout(() => {
@@ -346,6 +358,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
     });
 
+    // Симметричная система очков: успех игрока уменьшает очки ИИ
+    if (isSuccess && scoreData.totalPoints > 0) {
+      const ai = get().aiElectrician;
+      const decrease = Math.max(1, Math.floor(scoreData.totalPoints / 2));
+      set({
+        aiElectrician: {
+          ...ai,
+          points: Math.max(0, ai.points - decrease)
+        }
+      });
+      get().onAIPointsChanged();
+    }
+
     // Add experience
     const { addExperience } = get();
     addExperience(experienceGained);
@@ -415,7 +440,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // Повреждаем защитное снаряжение
     state.damageProtection(baseShockImpact.damage);
     
-    set({
+  set({
       player: {
         ...state.player,
         volts: Math.max(0, state.player.volts - baseShockImpact.voltsDrained),
@@ -439,6 +464,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
         streakCount: 0
       }
     });
+
+    // Разряд от розетки в момент клика засчитываем как успех ИИ: увеличиваем очки ИИ
+    set(s => ({
+      aiElectrician: {
+        ...s.aiElectrician,
+        points: Math.min(s.aiElectrician.maxPoints, s.aiElectrician.points + Math.max(1, Math.floor(finalDamage / 2)))
+      }
+    }));
+    get().onAIPointsChanged();
 
     // Отключаем эффекты после анимации
     setTimeout(() => {
@@ -610,6 +644,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
+  // Служебная функция: максимум очков ИИ на этапе
+  getAIMaxPointsForStage(stage: number) {
+    const diff = get().singleMode.difficulty;
+    const base = diff === 'extreme' ? 250 : diff === 'hard' ? 200 : diff === 'medium' ? 150 : 120;
+    // Растет с этапом, но с плавным коэффициентом
+    return base + Math.floor((stage - 1) * base * 0.25);
+  },
+
   hideLevelUpNotification: () => {
     set({
       levelUpNotification: {
@@ -691,6 +733,50 @@ export const useGameStore = create<GameStore>((set, get) => ({
     get().scheduleNextDischarge();
   },
 
+
+        // Вызывается при изменении очков ИИ, отвечает за переходы этапов и атаки
+        onAIPointsChanged: () => {
+          const state = get();
+          const ai = state.aiElectrician;
+          if (!state.gameState.isPlaying) return;
+
+          // Переход на следующий этап: очки ИИ исчерпаны
+          if (ai.points <= 0) {
+            const nextStage = state.singleMode.stage + 1;
+            const nextMax = get().getAIMaxPointsForStage(nextStage);
+            const voltsReward = 50 + nextStage * 10;
+            set({
+              player: { ...state.player, volts: state.player.volts + voltsReward },
+              singleMode: { ...state.singleMode, stage: nextStage },
+              aiElectrician: { ...ai, points: nextMax, maxPoints: nextMax, lastMessage: 'Этап пройден! Я выдохся...', messageTime: Date.now() }
+            });
+            // Шанс дропа предмета при переходе этапа
+            if (Math.random() < 0.5) {
+              setTimeout(() => get().dropElectricianItem(), 400);
+            }
+            return;
+          }
+
+          // ИИ накопил максимум очков — пытается ударить игрока током
+          if (ai.points >= ai.maxPoints) {
+            // Мощная атака
+            get().aiElectricianAttackPlayer();
+            // Сбрасываем очки до 60% и продолжаем этап
+            const reduced = Math.floor(ai.maxPoints * 0.6);
+            set({ aiElectrician: { ...ai, points: reduced } });
+          }
+        },
+
+        // Явный переход на следующий этап
+        advanceStage: () => {
+          const state = get();
+          const nextStage = state.singleMode.stage + 1;
+          const nextMax = get().getAIMaxPointsForStage(nextStage);
+          set({
+            singleMode: { ...state.singleMode, stage: nextStage },
+            aiElectrician: { ...state.aiElectrician, points: nextMax, maxPoints: nextMax }
+          });
+        },
   // Система дропа предметов от ИИ электрика
   dropElectricianItem: () => {
     const state = get();
@@ -1652,3 +1738,7 @@ function getDifficultyLevel(difficulty: SingleModeState['difficulty']): number {
     default: return 1;
   }
 }
+
+// Дополнительные методы, внедряемые в стор через mutate
+// Примечание: для простоты добавляем их на прототип стора через set после создания
+// удалено: attachStageAndPointsHandlers IIFE; функционал встроен в стор напрямую
