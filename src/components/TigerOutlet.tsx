@@ -85,6 +85,36 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
   // Handle outlet click
   const handleClick = useCallback(() => {
     if (!gameState.isPlaying) return;
+    
+    // ОСОБАЯ ЛОГИКА во время воспроизведения видео электрического разряда
+    if (showShockVideo) {
+      console.log('TigerOutlet: Click during shock video - applying additional penalty!');
+      
+      // Дополнительная вибрация за попытку кликнуть во время разряда
+      hapticManager.electricShock();
+      
+      // Звук дополнительного удара током
+      soundManager.generateShockSound();
+      
+      // Дополнительное снятие очков за каждый клик во время разряда
+      const penaltyData = {
+        basePoints: -20, // Большой штраф
+        riskMultiplier: 1,
+        streakBonus: 0,
+        timeBonus: 0,
+        totalPoints: -20,
+        reason: 'Клик во время разряда!'
+      };
+      
+      updateScore(penaltyData);
+      showScorePopup(penaltyData.totalPoints, penaltyData.reason, 'shock');
+      
+      // Дополнительные искры для показа урона
+      createSparks('extreme');
+      setGlowIntensity(4); // Максимальное свечение
+      
+      return; // Прекращаем обычную логику
+    }
 
     // Предупреждающие вибрации в зависимости от уровня опасности
     if (singleMode.warningSignsActive) {
@@ -199,6 +229,17 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
       updateScore(scoreData);
       showScorePopup(scoreData.totalPoints, scoreData.reason, 'success');
       
+      // ВРЕМЕННО: для тестирования видео в игре при успешных кликах
+      // TODO: удалить после отладки
+      if (Math.random() < 0.2) { // 20% шанс для тестирования
+        console.log('TigerOutlet: Test video activation on success!');
+        setShowShockVideo(true);
+        setTimeout(() => {
+          console.log('TigerOutlet: Test video timeout on success');
+          setShowShockVideo(false);
+        }, 4000);
+      }
+      
       // Дополнительная вибрация для серий достижений
       if (singleMode.streakCount > 0 && singleMode.streakCount % 5 === 0) {
         hapticManager.streakAchievement(singleMode.streakCount);
@@ -214,23 +255,43 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
 
   return (
     <div className={`relative ${className}`}>
+      {/* Danger Warning during shock */}
+      {showShockVideo && (
+        <motion.div
+          className="absolute inset-0 flex items-center justify-center pointer-events-none z-20"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0, 1, 0] }}
+          transition={{ duration: 0.5, repeat: Infinity }}
+        >
+          <div className="bg-red-600/80 text-white px-4 py-2 rounded-lg border-2 border-red-300 font-bold text-sm">
+            ⚡ DANGER! -20 points per click ⚡
+          </div>
+        </motion.div>
+      )}
+
       {/* Main Outlet Button */}
       <motion.button
         onClick={handleClick}
-        disabled={!gameState.isPlaying}
-        className="relative w-64 h-64 rounded-2xl overflow-hidden disabled:opacity-50 bg-gray-800"
-        whileTap={{ scale: 0.95 }}
+        disabled={!gameState.isPlaying} // Убираем блокировку во время видео
+        className={`relative w-64 h-64 rounded-2xl overflow-hidden bg-gray-800 ${
+          showShockVideo ? 'cursor-pointer animate-pulse' : 'cursor-pointer'
+        }`}
+        style={{
+          opacity: !gameState.isPlaying ? 0.5 : 1,
+          boxShadow: showShockVideo 
+            ? `0 0 ${40 * glowIntensity}px rgba(255, 0, 0, 0.8)` // Красное свечение во время разряда
+            : `0 0 ${20 * glowIntensity}px rgba(255, 107, 53, ${0.5 * glowIntensity})`
+        }}
+        whileTap={{ scale: 0.95 }} // Возвращаем анимацию
         whileHover={{ scale: 1.05 }}
         animate={{
-          scale: isPressed ? 0.9 : 1,
+          scale: isPressed ? 0.9 : showShockVideo ? [1, 1.05, 1] : 1, // Пульсация во время разряда
           filter: `brightness(${glowIntensity}) saturate(${glowIntensity})`,
           rotateY: isAnimating ? [0, 180, 360] : 0
         }}
         transition={{
-          rotateY: { duration: 0.6, ease: "easeInOut" }
-        }}
-        style={{
-          boxShadow: `0 0 ${20 * glowIntensity}px rgba(255, 107, 53, ${0.5 * glowIntensity})`
+          rotateY: { duration: 0.6, ease: "easeInOut" },
+          scale: showShockVideo ? { duration: 0.3, repeat: Infinity } : { duration: 0.1 }
         }}
       >
         {/* Main Content - Image or Video */}
@@ -261,6 +322,19 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
               console.log('Image loaded successfully:', currentImage);
             }}
           />
+        )}
+        
+        {/* Индикатор блокировки во время видео */}
+        {showShockVideo && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="absolute inset-0 bg-red-500/20 rounded-2xl flex items-center justify-center z-10"
+          >
+            <div className="bg-red-600 text-white px-3 py-1 rounded-full text-xs font-bold">
+              ⚡ РАЗРЯД ⚡
+            </div>
+          </motion.div>
         )}
         
         {/* Tiger Stripes Overlay */}
