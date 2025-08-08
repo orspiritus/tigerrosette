@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../store/gameStore';
 import { ShopItem, PlayerProtection } from '../types/game';
@@ -18,6 +18,16 @@ export const ProtectionShop: React.FC<ProtectionShopProps> = ({ isOpen, onClose 
   
   const [selectedCategory, setSelectedCategory] = useState<keyof PlayerProtection>('gloves');
   const [purchaseAnimation, setPurchaseAnimation] = useState<string | null>(null);
+
+  // Закрытие по клавише Escape
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [isOpen, onClose]);
 
   const shopItems = getShopItems();
   const totalProtection = getTotalProtection();
@@ -48,12 +58,18 @@ export const ProtectionShop: React.FC<ProtectionShopProps> = ({ isOpen, onClose 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      onClick={onClose}
+      role="button"
+      aria-label="Закрыть магазин"
+    >
       <motion.div
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.8, opacity: 0 }}
         className="bg-gray-900 border-2 border-yellow-400 rounded-lg p-6 max-w-4xl w-full max-h-[80vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Заголовок */}
         <div className="flex justify-between items-center mb-6">
@@ -194,6 +210,16 @@ export const ProtectionShop: React.FC<ProtectionShopProps> = ({ isOpen, onClose 
             💡 <strong>Совет:</strong> Защитная экипировка изнашивается при ударах током. 
             Более качественная экипировка служит дольше и обеспечивает лучшую защиту.
           </p>
+        </div>
+
+        {/* Нижняя панель с кнопкой закрытия */}
+        <div className="mt-6 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 rounded-md font-bold bg-gray-700 text-white hover:bg-gray-600 border border-gray-500"
+          >
+            Закрыть
+          </button>
         </div>
       </motion.div>
     </div>
