@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useGameStore } from '../store/gameStore';
 import { TigerOutlet } from './TigerOutlet';
 import { GameHUD } from './GameHUD';
+import { VideoTestButton } from './VideoTestButton';
 import { useGameApi } from '../hooks/useGameApi';
 import { ScreenShake } from './ScreenShake';
 
@@ -160,6 +161,7 @@ export const GameScreen: React.FC = () => {
   return (
     <>
       <ScreenShake isActive={isScreenShaking} />
+      <VideoTestButton />
       <div className="min-h-screen bg-gradient-to-br from-background-dark to-background-darker relative">
       {/* Game HUD */}
       <GameHUD />

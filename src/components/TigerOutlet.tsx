@@ -6,6 +6,7 @@ import { soundManager } from '../utils/soundManager';
 import { hapticManager } from '../utils/hapticManager';
 import { ScorePopup } from './ScorePopup';
 import { ElectricSparks } from './ElectricSparks';
+import { SimpleVideoPlayer } from './SimpleVideoPlayer';
 import { useOutletImageAnimation } from '../hooks/useOutletImageAnimation';
 
 interface TigerOutletProps {
@@ -28,6 +29,7 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
   const [isPressed, setIsPressed] = useState(false);
   const [glowIntensity, setGlowIntensity] = useState(1);
   const [isElectricShockActive, setIsElectricShockActive] = useState(false);
+  const [showShockVideo, setShowShockVideo] = useState(false);
   const [scorePopup, setScorePopup] = useState<{
     visible: boolean;
     score: number;
@@ -41,6 +43,12 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
     setTimeout(() => {
       setScorePopup(prev => ({ ...prev, visible: false }));
     }, 2000);
+  }, []);
+
+  // Handle video shock effect completion
+  const handleShockVideoComplete = useCallback(() => {
+    console.log('TigerOutlet: Shock video completed');
+    setShowShockVideo(false);
   }, []);
 
   // Create spark effect on click
@@ -93,12 +101,22 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
     setIsPressed(true);
     clickOutlet();
 
-    // Проверяем, происходит ли разряд ИИ электрика в момент клика
+    // Проверяем, происходит ли разряд электрика в момент клика
     const isShocked = singleMode.isDischarging;
+    console.log('TigerOutlet: Click handled', { 
+      isShocked, 
+      dangerLevel: singleMode.dangerLevel, 
+      isDischarging: singleMode.isDischarging,
+      currentRisk: singleMode.currentRisk,
+      gameState: gameState.isPlaying,
+      singleModeState: singleMode
+    });
     
     if (isShocked) {
+      console.log('TigerOutlet: Electric shock triggered!');
       // Активируем эффект электрического разряда
       setIsElectricShockActive(true);
+      setShowShockVideo(true); // Запускаем видео эффект
       setGlowIntensity(3);
       
       // Trigger screen shake effect
@@ -215,23 +233,35 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
           boxShadow: `0 0 ${20 * glowIntensity}px rgba(255, 107, 53, ${0.5 * glowIntensity})`
         }}
       >
-        {/* Main Outlet Image */}
-        <img 
-          src={currentImage} 
-          alt="Tiger Outlet" 
-          className="absolute inset-0 w-full h-full object-cover rounded-2xl"
-          onError={(e) => {
-            console.error('Image failed to load:', currentImage);
-            console.error('Error event:', e);
-            console.error('Current window location:', window.location.href);
-            console.error('Trying full path:', `${window.location.origin}${currentImage}`);
-            // Fallback to a solid background
-            e.currentTarget.style.display = 'none';
-          }}
-          onLoad={() => {
-            console.log('Image loaded successfully:', currentImage);
-          }}
-        />
+        {/* Main Content - Image or Video */}
+        {showShockVideo ? (
+          /* Electric Shock Video - заменяет изображение */
+          <SimpleVideoPlayer
+            isActive={showShockVideo}
+            onComplete={handleShockVideoComplete}
+            intensity={singleMode.currentRisk === 'extreme' ? 'extreme' :
+                       singleMode.currentRisk === 'high' ? 'high' :
+                       singleMode.currentRisk === 'medium' ? 'medium' : 'low'}
+          />
+        ) : (
+          /* Main Outlet Image */
+          <img 
+            src={currentImage} 
+            alt="Tiger Outlet" 
+            className="absolute inset-0 w-full h-full object-cover rounded-2xl"
+            onError={(e) => {
+              console.error('Image failed to load:', currentImage);
+              console.error('Error event:', e);
+              console.error('Current window location:', window.location.href);
+              console.error('Trying full path:', `${window.location.origin}${currentImage}`);
+              // Fallback to a solid background
+              e.currentTarget.style.display = 'none';
+            }}
+            onLoad={() => {
+              console.log('Image loaded successfully:', currentImage);
+            }}
+          />
+        )}
         
         {/* Tiger Stripes Overlay */}
         <div className="absolute inset-0 tiger-stripes opacity-20 mix-blend-overlay" />
@@ -314,6 +344,19 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
           />
         ))}
       </AnimatePresence>
+
+      {/* Временная кнопка для тестирования видео */}
+      <button 
+        onClick={() => {
+          console.log('Manual video test');
+          setShowShockVideo(true);
+          setTimeout(() => setShowShockVideo(false), 3000);
+        }}
+        className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded text-sm z-50"
+        style={{ zIndex: 1000 }}
+      >
+        Test Video
+      </button>
 
       {/* Risk Level Indicator */}
       <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2">

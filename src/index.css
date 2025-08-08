@@ -31,4 +31,8 @@
     );
     background-size: 20px 20px;
   }
+
+  .bg-gradient-radial {
+    background: radial-gradient(var(--tw-gradient-stops));
+  }
 }
