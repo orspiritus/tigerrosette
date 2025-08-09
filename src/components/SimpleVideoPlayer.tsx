@@ -43,7 +43,7 @@ export const SimpleVideoPlayer: React.FC<SimpleVideoPlayerProps> = ({
 
     logVideoState();
 
-    if (isActive) {
+  if (isActive) {
       console.log('SimpleVideoPlayer: Starting video');
       video.currentTime = 0;
       video.style.display = 'block';
@@ -58,6 +58,7 @@ export const SimpleVideoPlayer: React.FC<SimpleVideoPlayerProps> = ({
         logVideoState();
         video.play().then(() => {
           console.log('SimpleVideoPlayer: Video started successfully');
+          (window as any).__shockVideoStarted = true;
         }).catch(error => {
           console.error('SimpleVideoPlayer: Play error:', error);
         });
@@ -92,6 +93,7 @@ export const SimpleVideoPlayer: React.FC<SimpleVideoPlayerProps> = ({
       style={{ display: 'none' }}
       muted
       playsInline
+      autoPlay={false}
       preload="auto"
     />
   );

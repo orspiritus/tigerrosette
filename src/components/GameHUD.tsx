@@ -9,7 +9,7 @@ export const GameHUD: React.FC = () => {
   const [showShop, setShowShop] = useState(false);
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-10 bg-black/20 backdrop-blur-sm border-b border-white/10">
+    <div className="fixed top-0 left-0 right-0 z-10 bg-black/20 backdrop-blur-sm border-b border-white/10 pointer-events-auto">
       <div className="flex justify-between items-center p-4">
         {/* Score Display */}
         <div className="flex items-center space-x-4">
@@ -424,7 +424,7 @@ export const GameHUD: React.FC = () => {
       {/* Protection Shop Button */}
       <motion.button
         onClick={() => setShowShop(true)}
-        className="fixed bottom-20 left-4 glass-effect px-4 py-2 text-yellow-400 hover:text-yellow-300"
+        className="fixed bottom-20 left-4 glass-effect px-4 py-2 text-yellow-400 hover:text-yellow-300 z-40"
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.95 }}
       >

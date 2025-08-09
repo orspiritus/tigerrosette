@@ -166,7 +166,12 @@ export const GameScreen: React.FC = () => {
       <GameHUD />
       
       {/* Main Game Area */}
-      <div className="flex flex-col items-center justify-center min-h-screen pt-24 pb-8">
+      {/* Main playable area; extra top padding when подробная панель ИИ активна, чтобы она не заслоняла розетку */}
+      <div
+        className={`flex flex-col items-center justify-center min-h-screen pb-8 ${
+          singleMode.aiElectricianActive ? 'pt-44 md:pt-48' : 'pt-24'
+        }`}
+      >
         {/* Game Timer */}
         <motion.div
           className="glass-effect px-6 py-3 mb-8"
@@ -183,7 +188,7 @@ export const GameScreen: React.FC = () => {
         </motion.div>
 
         {/* Tiger Outlet and Counter Attack - Main Game Elements */}
-        <div className="relative flex items-center justify-center space-x-8 mb-8">
+  <div className="relative flex items-center justify-center space-x-8 mb-8 z-20">
           {/* Counter Attack Button */}
           <CounterAttackButton className="order-1" />
           

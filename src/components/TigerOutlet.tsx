@@ -8,6 +8,7 @@ import { calculateLevel } from '../utils/levelSystem';
 import { ScorePopup } from './ScorePopup';
 import { ElectricSparks } from './ElectricSparks';
 import { SimpleVideoPlayer } from './SimpleVideoPlayer';
+import { ElectricShockVideo } from './ElectricShockVideo';
 import { useOutletImageAnimation } from '../hooks/useOutletImageAnimation';
 
 interface TigerOutletProps {
@@ -282,7 +283,7 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
   }, [gameState.isPlaying, singleMode, clickOutlet, createSparks, updateScore]);
 
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative z-30 ${className}`}>
       {/* Danger Warning during shock */}
       {showShockVideo && (
         <motion.div
@@ -324,11 +325,8 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
       >
         {/* Main Content - Image or Video */}
         {showShockVideo ? (
-          /* Electric Shock Video - заменяет изображение */
-          <SimpleVideoPlayer
-            isActive={showShockVideo}
-            onComplete={handleShockVideoComplete}
-          />
+          /* Пытаемся воспроизвести простой видеоплеер; если не стартует за 400мс — переключаемся на расширенный */
+          <VideoShockWrapper active={showShockVideo} onEnd={handleShockVideoComplete} />
         ) : (
           /* Main Outlet Image */
           <img 
@@ -467,5 +465,37 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
         type={scorePopup.type}
       />
     </div>
+  );
+};
+
+// Обёртка с fallback между SimpleVideoPlayer и ElectricShockVideo
+const VideoShockWrapper: React.FC<{ active: boolean; onEnd: () => void }> = ({ active, onEnd }) => {
+  const [fallback, setFallback] = React.useState(false);
+  const fallbackTimerRef = React.useRef<number | null>(null);
+
+  React.useEffect(() => {
+    if (active) {
+      // Если через 400мс видео не отметилось started — используем расширенный компонент
+      fallbackTimerRef.current = window.setTimeout(() => {
+        if (!(window as any).__shockVideoStarted) {
+          console.warn('VideoShockWrapper: fallback to ElectricShockVideo');
+          setFallback(true);
+        }
+      }, 400);
+    } else {
+      setFallback(false);
+    }
+    return () => {
+      if (fallbackTimerRef.current) window.clearTimeout(fallbackTimerRef.current);
+    };
+  }, [active]);
+
+  // Проставляем глобальный флаг при старте для отмены fallback
+  const markStarted = () => { (window as any).__shockVideoStarted = true; };
+
+  return fallback ? (
+    <ElectricShockVideo isActive={active} onComplete={() => { onEnd(); }} intensity="high" />
+  ) : (
+    <SimpleVideoPlayer isActive={active} onComplete={() => { markStarted(); onEnd(); }} />
   );
 };
