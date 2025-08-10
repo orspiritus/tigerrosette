@@ -213,36 +213,7 @@ export const GameHUD: React.FC = () => {
         </div>
       </div>
       
-      {/* Warning Banner */}
-      {singleMode.warningSignsActive && (
-        <motion.div
-          className="bg-yellow-500/80 text-black px-4 py-2 text-center font-bold"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ 
-            opacity: [0, 1, 0.7, 1, 0.7, 1], 
-            y: 0 
-          }}
-          transition={{ duration: 0.5 }}
-        >
-          ⚠️ ОПАСНОСТЬ! ВЫСОКИЙ РИСК РАЗРЯДА! ⚠️
-        </motion.div>
-      )}
-
-      {/* Danger Level Indicator */}
-      {singleMode.dangerLevel > 30 && (
-        <motion.div
-          className={`px-4 py-1 text-center text-xs font-semibold ${
-            singleMode.dangerLevel > 70 ? 'bg-red-500/60 text-white' :
-            singleMode.dangerLevel > 50 ? 'bg-orange-500/60 text-white' :
-            'bg-yellow-500/60 text-black'
-          }`}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.3 }}
-        >
-          🔥 УРОВЕНЬ ОПАСНОСТИ: {singleMode.dangerLevel}% 🔥
-        </motion.div>
-      )}
+  {/* Warning and danger banners removed as per request */}
       
       {/* AI Electrician Detailed Status */}
       {singleMode.aiElectricianActive && (
