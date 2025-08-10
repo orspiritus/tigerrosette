@@ -8,7 +8,7 @@ import { calculateLevel } from '../utils/levelSystem';
 import { ScorePopup } from './ScorePopup';
 import { ElectricSparks } from './ElectricSparks';
 import { SimpleVideoPlayer } from './SimpleVideoPlayer';
-import { ElectricShockVideo } from './ElectricShockVideo';
+// import { ElectricShockVideo } from './ElectricShockVideo'; // Fallback компонент больше не используется
 import { useOutletImageAnimation } from '../hooks/useOutletImageAnimation';
 
 interface TigerOutletProps {
@@ -285,15 +285,16 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
   return (
     <div className={`relative z-30 ${className}`}>
       {/* Danger Warning during shock */}
+      {/* Всплывающее предупреждение во время разряда (скрываем если видео воспроизводится во фолбэке) */}
       {showShockVideo && (
         <motion.div
-          className="absolute inset-0 flex items-center justify-center pointer-events-none z-20"
+          className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
           initial={{ opacity: 0 }}
           animate={{ opacity: [0, 1, 0] }}
           transition={{ duration: 0.5, repeat: Infinity }}
         >
-          <div className="bg-red-600/80 text-white px-4 py-2 rounded-lg border-2 border-red-300 font-bold text-sm">
-            ⚡ DANGER! -20 points per click ⚡
+          <div className="bg-red-600/70 text-white px-4 py-2 rounded-lg border border-red-300 font-bold text-xs md:text-sm">
+            ⚡ РАЗРЯД! Штраф за клик ⚡
           </div>
         </motion.div>
       )}
@@ -325,8 +326,10 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
       >
         {/* Main Content - Image or Video */}
         {showShockVideo ? (
-          /* Пытаемся воспроизвести простой видеоплеер; если не стартует за 400мс — переключаемся на расширенный */
-          <VideoShockWrapper active={showShockVideo} onEnd={handleShockVideoComplete} />
+          /* Прямое воспроизведение импортированного видео без промежуточных фолбэков */
+          <div className="absolute inset-0 z-50">
+            <SimpleVideoPlayer isActive={showShockVideo} onComplete={handleShockVideoComplete} />
+          </div>
         ) : (
           /* Main Outlet Image */
           <img 
@@ -348,34 +351,28 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
         )}
         
         {/* Индикатор блокировки во время видео */}
-        {showShockVideo && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="absolute inset-0 bg-red-500/20 rounded-2xl flex items-center justify-center z-10"
-          >
-            <div className="bg-red-600 text-white px-3 py-1 rounded-full text-xs font-bold">
-              ⚡ РАЗРЯД ⚡
-            </div>
-          </motion.div>
-        )}
+  {/* Убрали затемняющий слой, чтобы видео не скрывалось */}
         
         {/* Tiger Stripes Overlay */}
-        <div className="absolute inset-0 tiger-stripes opacity-20 mix-blend-overlay" />
+        {!showShockVideo && (
+          <div className="absolute inset-0 tiger-stripes opacity-20 mix-blend-overlay" />
+        )}
         
         {/* Electric Glow Effect */}
-        <motion.div
-          className="absolute inset-0 rounded-2xl"
-          animate={{
-            boxShadow: singleMode.warningSignsActive 
-              ? `0 0 ${30 * glowIntensity}px #FF0000, inset 0 0 ${30 * glowIntensity}px #FF0000`
-              : `0 0 ${15 * glowIntensity}px #FF6B35, inset 0 0 ${15 * glowIntensity}px #FF6B35`
-          }}
-          transition={{ duration: singleMode.warningSignsActive ? 0.1 : 0.2 }}
-        />
+        {!showShockVideo && (
+          <motion.div
+            className="absolute inset-0 rounded-2xl"
+            animate={{
+              boxShadow: singleMode.warningSignsActive 
+                ? `0 0 ${30 * glowIntensity}px #FF0000, inset 0 0 ${30 * glowIntensity}px #FF0000`
+                : `0 0 ${15 * glowIntensity}px #FF6B35, inset 0 0 ${15 * glowIntensity}px #FF6B35`
+            }}
+            transition={{ duration: singleMode.warningSignsActive ? 0.1 : 0.2 }}
+          />
+        )}
 
         {/* Danger Level Indicator */}
-        {singleMode.dangerLevel > 50 && (
+  {singleMode.dangerLevel > 50 && !showShockVideo && (
           <motion.div
             className="absolute -top-12 left-1/2 transform -translate-x-1/2"
             initial={{ opacity: 0, scale: 0 }}
@@ -402,11 +399,13 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
         )}
 
         {/* Electric Shock Effects */}
-        <ElectricSparks 
-          isActive={isElectricShockActive}
-          intensity="extreme"
-          onComplete={() => setIsElectricShockActive(false)}
-        />
+        {!showShockVideo && (
+          <ElectricSparks 
+            isActive={isElectricShockActive}
+            intensity="extreme"
+            onComplete={() => setIsElectricShockActive(false)}
+          />
+        )}
       </motion.button>
 
       {/* Spark Effects */}
@@ -468,34 +467,4 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
   );
 };
 
-// Обёртка с fallback между SimpleVideoPlayer и ElectricShockVideo
-const VideoShockWrapper: React.FC<{ active: boolean; onEnd: () => void }> = ({ active, onEnd }) => {
-  const [fallback, setFallback] = React.useState(false);
-  const fallbackTimerRef = React.useRef<number | null>(null);
-
-  React.useEffect(() => {
-    if (active) {
-      // Если через 400мс видео не отметилось started — используем расширенный компонент
-      fallbackTimerRef.current = window.setTimeout(() => {
-        if (!(window as any).__shockVideoStarted) {
-          console.warn('VideoShockWrapper: fallback to ElectricShockVideo');
-          setFallback(true);
-        }
-      }, 400);
-    } else {
-      setFallback(false);
-    }
-    return () => {
-      if (fallbackTimerRef.current) window.clearTimeout(fallbackTimerRef.current);
-    };
-  }, [active]);
-
-  // Проставляем глобальный флаг при старте для отмены fallback
-  const markStarted = () => { (window as any).__shockVideoStarted = true; };
-
-  return fallback ? (
-    <ElectricShockVideo isActive={active} onComplete={() => { onEnd(); }} intensity="high" />
-  ) : (
-    <SimpleVideoPlayer isActive={active} onComplete={() => { markStarted(); onEnd(); }} />
-  );
-};
+// Старый fallback-компонент удалён как неиспользуемый
