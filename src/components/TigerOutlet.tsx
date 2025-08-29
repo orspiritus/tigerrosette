@@ -326,8 +326,8 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
       >
         {/* Main Content - Image or Video */}
         {showShockVideo ? (
-          /* Прямое воспроизведение импортированного видео без промежуточных фолбэков */
-          <div className="absolute inset-0 z-50">
+          /* Видео: контейнер без перехвата событий, чтобы доп. клики штрафовались */
+          <div className="absolute inset-0 z-50 pointer-events-none">
             <SimpleVideoPlayer isActive={showShockVideo} onComplete={handleShockVideoComplete} />
           </div>
         ) : (
@@ -371,7 +371,7 @@ export const TigerOutlet: React.FC<TigerOutletProps> = ({ className = '', onShoc
           />
         )}
 
-        {/* Danger Level Indicator */}
+    {/* Danger Level Indicator (retained minimal, could be removed if clutter) */}
   {singleMode.dangerLevel > 50 && !showShockVideo && (
           <motion.div
             className="absolute -top-12 left-1/2 transform -translate-x-1/2"

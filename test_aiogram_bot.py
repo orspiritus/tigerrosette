@@ -26,8 +26,11 @@ dp = Dispatcher()
 @dp.message(CommandStart())
 async def start_handler(message: Message):
     """Обработчик команды /start"""
+    if not message.from_user:
+        return
+    first_name = message.from_user.first_name or "Игрок"
     await message.answer(
-        f"🐅⚡ Привет, {message.from_user.first_name}!\n\n"
+        f"🐅⚡ Привет, {first_name}!\n\n"
         "TigerRozetka Bot (aiogram) работает!\n\n"
         "🎮 Скоро здесь будут дуэли!"
     )

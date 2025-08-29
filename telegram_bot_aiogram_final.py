@@ -1,7 +1,8 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-TigerRozetka Telegram Bot - aiogram версия (окончательно исправленная)
-Современная система дуэлей и управления подписчиками
+"""TigerRozetka Telegram Bot (aiogram)
+
+Простая версия без усложнённых заглушек. Требует установленных зависимостей.
 """
 
 import asyncio
@@ -9,45 +10,54 @@ import json
 import sqlite3
 import os
 import uuid
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, TYPE_CHECKING, cast
 from datetime import datetime, timedelta
 
-# Проверка зависимостей с защитой от ошибок импорта
-try:
-    import aiohttp
-    from aiogram import Bot, Dispatcher, Router, F
+if TYPE_CHECKING:  # импорт только для типов, чтобы избежать предупреждений
+    from aiogram import Bot, Dispatcher, Router, F  # type: ignore
     from aiogram.types import (
         Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup,
         BotCommand, WebAppInfo
+    )  # type: ignore
+    from aiogram.filters import CommandStart, Command  # type: ignore
+    from aiogram.fsm.state import State, StatesGroup  # type: ignore
+    from aiogram.fsm.storage.memory import MemoryStorage  # type: ignore
+
+try:
+    import aiohttp  # type: ignore
+    from aiogram import Bot, Dispatcher, Router, F  # type: ignore
+    from aiogram.types import (  # type: ignore
+        Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup,
+        BotCommand, WebAppInfo
     )
-    from aiogram.filters import CommandStart, Command
-    from aiogram.fsm.context import FSMContext
-    from aiogram.fsm.state import State, StatesGroup
-    from aiogram.fsm.storage.memory import MemoryStorage
-    from dotenv import load_dotenv
+    from aiogram.filters import CommandStart, Command  # type: ignore
+    from aiogram.fsm.state import State, StatesGroup  # type: ignore
+    from aiogram.fsm.storage.memory import MemoryStorage  # type: ignore
+    from dotenv import load_dotenv  # type: ignore
+    load_dotenv()  # вызываем только если реально импортировано
     IMPORTS_OK = True
     print("✅ Все зависимости загружены успешно")
-except ImportError as e:
+except ImportError as e:  # pragma: no cover - среда без зависимостей
     print(f"⚠️  Некоторые зависимости не установлены: {e}")
-    print("📦 Запустите: pip install aiogram aiohttp python-dotenv")
+    print("📦 Установите: pip install aiogram aiohttp python-dotenv")
     IMPORTS_OK = False
+    aiohttp = None  # type: ignore
 
-# Загрузка конфигурации
 if IMPORTS_OK:
-    load_dotenv()
+    class DuelStates(StatesGroup):  # type: ignore
+        selecting_opponent = State()
+        waiting_response = State()
+        in_game = State()
+else:
+    class DuelStates:  # type: ignore
+        selecting_opponent = object()
+        waiting_response = object()
+        in_game = object()
 
-# Конфигурация
 BOT_TOKEN = os.getenv('VITE_TELEGRAM_BOT_TOKEN') or os.getenv('TELEGRAM_BOT_TOKEN', '')
 DATABASE_PATH = 'bot_users.db'
 BACKEND_API_URL = 'http://localhost:3001'
 GAME_URL = 'https://orspiritus.github.io/tigerrosette/'
-
-# FSM состояния для дуэлей
-if IMPORTS_OK:
-    class DuelStates(StatesGroup):
-        selecting_opponent = State()
-        waiting_response = State()
-        in_game = State()
 
 class TigerRozetkaBotManager:
     def __init__(self):
@@ -241,27 +251,24 @@ async def cleanup_expired_duels():
     if deleted > 0:
         print(f"🧹 Удалено истекших дуэлей: {deleted}")
 
-# Инициализация бота и обработчиков (только если все зависимости доступны)
 if IMPORTS_OK:
-    # Создаем бота и диспетчер
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher(storage=MemoryStorage())
     main_router = Router()
 
-    # Middleware для автоматической регистрации пользователей
     async def user_registration_middleware(handler, event, data):
-        """Middleware для автоматической регистрации пользователей"""
         if hasattr(event, 'from_user') and event.from_user:
             user = event.from_user
-            await register_user(
-                user.id, user.username, user.first_name, user.last_name
-            )
+            await register_user(user.id, user.username, user.first_name, user.last_name)
         return await handler(event, data)
 
-    # Команда /start
-    @main_router.message(CommandStart())
+    # (Опционально можно подключить: dp.update.middleware(user_registration_middleware))
+
+    @main_router.message(CommandStart())  # type: ignore[arg-type]
     async def start_handler(message: Message):
         """Обработчик команды /start"""
+        if not message.from_user:
+            return
         user = message.from_user
         await register_user(user.id, user.username, user.first_name, user.last_name)
         
@@ -290,8 +297,7 @@ if IMPORTS_OK:
         
         await message.answer(welcome_text, reply_markup=keyboard)
 
-    # Команда /play
-    @main_router.message(Command("play"))
+    @main_router.message(Command("play"))  # type: ignore[arg-type]
     async def play_handler(message: Message):
         """Запуск игры"""
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -306,15 +312,16 @@ if IMPORTS_OK:
             reply_markup=keyboard
         )
 
-    # Команда /duel
-    @main_router.message(Command("duel"))
+    @main_router.message(Command("duel"))  # type: ignore[arg-type]
     async def duel_command_handler(message: Message):
         """Команда дуэли"""
         await show_duel_menu(message)
 
-    async def show_duel_menu(message: Message):
+    async def show_duel_menu(message: Any):  # принимаем Any, чтобы избежать ошибок типов при inaccessible
         """Показать меню дуэлей"""
-        user_id = message.from_user.id
+        if not getattr(message, 'from_user', None):
+            return
+        user_id = message.from_user.id  # type: ignore[attr-defined]
         players = await get_active_players(exclude_user_id=user_id)
         
         if not players:
@@ -363,10 +370,11 @@ if IMPORTS_OK:
         keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
         await message.answer(text, reply_markup=keyboard)
 
-    # Команда /stats
-    @main_router.message(Command("stats"))
+    @main_router.message(Command("stats"))  # type: ignore[arg-type]
     async def stats_handler(message: Message):
         """Показать статистику пользователя"""
+        if not message.from_user:
+            return
         user_id = message.from_user.id
         stats = await get_user_stats(user_id)
         
@@ -397,36 +405,40 @@ if IMPORTS_OK:
     async def duel_menu_callback(callback: CallbackQuery):
         """Показать меню дуэлей из callback"""
         await callback.answer()
-        await show_duel_menu(callback.message)
+        msg = getattr(callback, 'message', None)
+        if not msg or not hasattr(msg, 'answer'):
+            return
+        await show_duel_menu(msg)
 
     @main_router.callback_query(F.data == "refresh_players")
     async def refresh_players_callback(callback: CallbackQuery):
         """Обновить список игроков"""
         await callback.answer("🔄 Обновляем список...")
-        await show_duel_menu(callback.message)
+        msg = getattr(callback, 'message', None)
+        if not msg or not hasattr(msg, 'answer'):
+            return
+        await show_duel_menu(msg)
 
     @main_router.callback_query(F.data.startswith("challenge:"))
     async def challenge_callback(callback: CallbackQuery):
         """Отправить вызов на дуэль"""
         await callback.answer()
-        
+        if not callback.data:
+            return
         target_user_id = int(callback.data.split(":")[1])
         challenger_id = callback.from_user.id
         
-        # Создаем дуэль
         duel_id = await create_duel(challenger_id, target_user_id)
-        
-        # Отправляем уведомление получателю
         await send_duel_notification(target_user_id, challenger_id, duel_id)
-        
-        # Уведомляем отправителя
-        await callback.message.edit_text(
-            "⚔️ Приглашение на дуэль отправлено!\n\n"
-            "⏰ Ожидайте ответа в течение 5 минут...",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔙 Назад к списку", callback_data="duel_menu")]
-            ])
-        )
+        if callback.message and hasattr(callback.message, 'edit_text'):
+            msg_any: Any = callback.message  # cast for type checker
+            await msg_any.edit_text(
+                "⚔️ Приглашение на дуэль отправлено!\n\n"
+                "⏰ Ожидайте ответа в течение 5 минут...",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🔙 Назад к списку", callback_data="duel_menu")]
+                ])
+            )
 
     async def send_duel_notification(to_user_id: int, from_user_id: int, duel_id: str):
         """Отправка уведомления о дуэли"""
@@ -481,81 +493,83 @@ if IMPORTS_OK:
     async def accept_duel_callback(callback: CallbackQuery):
         """Принять дуэль"""
         await callback.answer()
-        
+        if not callback.data:
+            return
         duel_id = callback.data.split(":")[1]
-        user_id = callback.from_user.id
+        user_id = callback.from_user.id  # noqa: F841 (возможное будущее использование)
         
         duel_info = await get_duel_info(duel_id)
-        
         if not duel_info:
-            await callback.message.edit_text("❌ Приглашение не найдено или недействительно")
+            if callback.message and hasattr(callback.message, 'edit_text'):
+                msg_any: Any = callback.message
+                await msg_any.edit_text("❌ Приглашение не найдено или недействительно")
             return
+        try:
+            expires_at_raw = duel_info['expires_at']
+            # БД может вернуть либо ISO строку, либо уже datetime
+            if isinstance(expires_at_raw, str):
+                expires_at = datetime.fromisoformat(expires_at_raw)
+            else:
+                expires_at = expires_at_raw  # type: ignore
+            if expires_at < datetime.now():
+                if callback.message and hasattr(callback.message, 'edit_text'):
+                    msg_any: Any = callback.message
+                    await msg_any.edit_text("⏰ Время для ответа истекло")
+                return
+        except Exception:
+            pass  # Если что-то не так с датой — продолжаем, не блокируем дуэль
         
-        # Проверяем срок действия
-        expires_at = datetime.fromisoformat(duel_info['expires_at'])
-        if expires_at < datetime.now():
-            await callback.message.edit_text("⏰ Время для ответа истекло")
-            return
-        
-        # Принимаем дуэль
         await update_duel_status(duel_id, 'accepted')
-        
-        # Уведомляем обоих игроков
         game_url_with_duel = f"{GAME_URL}?duel={duel_id}"
-        
         duel_keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(
                 text="🎮 Начать дуэль!", 
                 web_app=WebAppInfo(url=game_url_with_duel)
             )]
         ])
-        
-        # Уведомляем инициатора
         await bot.send_message(
             duel_info['player1_id'],
             "✅ Ваш вызов принят! Дуэль начинается!\n\n"
             "🎮 Нажмите кнопку ниже для входа в игру:",
             reply_markup=duel_keyboard
         )
-        
-        # Уведомляем принявшего
-        await callback.message.edit_text(
-            "⚔️ Дуэль принята! Удачи!\n\n"
-            "🎮 Нажмите кнопку ниже для входа в игру:",
-            reply_markup=duel_keyboard
-        )
-        
-        # Уведомляем backend
+        if callback.message and hasattr(callback.message, 'edit_text'):
+            msg_any: Any = callback.message
+            await msg_any.edit_text(
+                "⚔️ Дуэль принята! Удачи!\n\n"
+                "🎮 Нажмите кнопку ниже для входа в игру:",
+                reply_markup=duel_keyboard
+            )
         await notify_backend_duel_start(duel_id, duel_info['player1_id'], duel_info['player2_id'])
 
     @main_router.callback_query(F.data.startswith("decline_duel:"))
     async def decline_duel_callback(callback: CallbackQuery):
         """Отклонить дуэль"""
         await callback.answer()
-        
+        if not callback.data:
+            return
         duel_id = callback.data.split(":")[1]
         duel_info = await get_duel_info(duel_id)
-        
         if duel_info:
-            # Удаляем дуэль
             conn = sqlite3.connect(DATABASE_PATH)
             cursor = conn.cursor()
             cursor.execute('DELETE FROM active_duels WHERE id = ?', (duel_id,))
             conn.commit()
             conn.close()
-            
-            # Уведомляем инициатора
             await bot.send_message(
                 duel_info['player1_id'],
                 "❌ Ваш вызов на дуэль отклонен"
             )
-        
-        await callback.message.edit_text("❌ Вы отклонили приглашение на дуэль")
+        if callback.message and hasattr(callback.message, 'edit_text'):
+            msg_any: Any = callback.message
+            await msg_any.edit_text("❌ Вы отклонили приглашение на дуэль")
 
     async def notify_backend_duel_start(duel_id: str, player1_id: int, player2_id: int):
         """Уведомление backend о начале дуэли"""
         try:
-            async with aiohttp.ClientSession() as session:
+            if aiohttp is None:  # type: ignore
+                return
+            async with aiohttp.ClientSession() as session:  # type: ignore[attr-defined]
                 data = {
                     'duelId': duel_id,
                     'player1Id': player1_id,
@@ -584,14 +598,12 @@ if IMPORTS_OK:
 
     # Фоновая задача очистки
     async def cleanup_task():
-        """Фоновая задача для очистки истекших дуэлей"""
+        """Фоновая задача для очистки истекших дуэлей (одна реализация)."""
         while True:
             await cleanup_expired_duels()
-            await asyncio.sleep(60)  # Каждую минуту
+            await asyncio.sleep(60)
 
-    # Настройка команд бота
     async def set_bot_commands():
-        """Установка команд бота"""
         commands = [
             BotCommand(command="start", description="🚀 Запустить бота"),
             BotCommand(command="play", description="🎮 Играть в TigerRozetka"),
@@ -600,34 +612,22 @@ if IMPORTS_OK:
         ]
         await bot.set_my_commands(commands)
 
-    # Главная функция запуска
     async def main():
-        """Запуск бота"""
         if not BOT_TOKEN:
             print("❌ BOT_TOKEN не установлен!")
             return
-        
-        # Регистрируем роутер
+
         dp.include_router(main_router)
-        
+
         print("🚀 TigerRozetka Bot (aiogram) запускается...")
-        
-        # Устанавливаем команды
         await set_bot_commands()
-        
-        # Запускаем фоновую очистку
         asyncio.create_task(cleanup_task())
-        
         print("✅ TigerRozetka Bot запущен!")
-        print("📱 Команды бота: /start, /duel, /stats, /play")
+        print("📱 Команды: /start /play /duel /stats")
         print("🔗 Backend API:  http://localhost:3001")
         print("🌐 Frontend:     http://localhost:5173")
         print("📱 Game URL:     https://orspiritus.github.io/tigerrosette/")
-        print("")
-        print("💡 Закройте все окна для остановки сервисов")
-        print("")
-        
-        # Запускаем polling
+
         await dp.start_polling(bot, drop_pending_updates=True)
 
     if __name__ == '__main__':
