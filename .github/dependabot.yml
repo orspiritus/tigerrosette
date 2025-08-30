@@ -1,0 +1,94 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "03:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    rebase-strategy: "auto"
+    labels: ["dependencies", "npm", "frontend"]
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      react-stack:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@vitejs/*"
+          - "vite"
+          - "typescript"
+      styling:
+        patterns:
+          - "tailwindcss"
+          - "postcss"
+          - "autoprefixer"
+      linting:
+        patterns:
+          - "eslint*"
+          - "@typescript-eslint/*"
+      babylon:
+        patterns:
+          - "@babylonjs/*"
+    ignore:
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "npm"
+    directory: "/backend"
+    schedule:
+      interval: "daily"
+      time: "03:15"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    rebase-strategy: "auto"
+    labels: ["dependencies", "npm", "backend"]
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      backend-core:
+        patterns:
+          - "@prisma/*"
+          - "prisma"
+          - "express"
+      tooling:
+        patterns:
+          - "ts-node"
+          - "nodemon"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "saturday"
+      time: "02:30"
+      timezone: "UTC"
+    labels: ["dependencies", "github-actions"]
+    commit-message:
+      prefix: "deps"
+
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "saturday"
+      time: "02:45"
+      timezone: "UTC"
+    labels: ["dependencies", "python", "bot"]
+    commit-message:
+      prefix: "deps"
+    allow:
+      - dependency-type: "direct"
+    ignore:
+      - dependency-name: "aiogram"
+        update-types: ["version-update:semver-major"]
+
+# Notes:
+# - Major React & aiogram bumps ignored to reduce breaking PR noise.
+# - Groups reduce PR spam; adjust patterns as stack evolves.
+# - Adjust times if concurrency with other workflows becomes an issue.
