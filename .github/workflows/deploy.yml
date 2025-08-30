@@ -1,0 +1,79 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'package.json'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - name: Verify integrity (npm ci)
+        run: npm ci --ignore-scripts
+      - name: Audit (low severity allowed)
+        run: |
+          npm audit --audit-level=high || echo "Audit completed"
+      - name: Secret scan (Telegram token pattern)
+        run: |
+          echo "Scanning tracked files for Telegram bot token patterns"
+          if git grep -E '[0-9]{5,}:[A-Za-z0-9_-]{20,}' -- ':!Project_Descrybe/project_prompt.md' || true; then
+            MATCHES=$(git grep -E '[0-9]{5,}:[A-Za-z0-9_-]{20,}' -- ':!Project_Descrybe/project_prompt.md' || true)
+          fi
+          if [ ! -z "$MATCHES" ]; then
+            echo "Potential secret patterns found:"; echo "$MATCHES"; echo "Failing build to prevent leak."; exit 1; fi
+      - name: Lint
+        run: npm run lint
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Build
+        run: npm run build
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

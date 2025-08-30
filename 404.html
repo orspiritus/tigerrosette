@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <title>TigerRozetka</title>
+    <meta http-equiv="refresh" content="0; url=/tigerrosette/" />
+  </head>
+  <body>
+    <script>
+      // SPA fallback: redirect preserving path as hash
+  const path = window.location.pathname.replace(/^\/tigerrosette\//,'');
+      window.location.replace('/tigerrosette/#/' + path + window.location.search + window.location.hash);
+    </script>
+  </body>
+</html>
