@@ -1,126 +1,108 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
+import { WebGPUManager } from '../webgpu/WebGPUManager';
+import { ParticleSystem } from '../webgpu/ParticleSystem';
+import { generateLightning, drawLightning } from '../webgpu/LightningEffect';
 
-// Minimal fallback type for GPUCanvasContext if not present in lib
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type GPUCanvasContext = { configure(o:any): void; getCurrentTexture(): { createView(): any } };
-
-interface WebGPUStatus {
-  supported: boolean;
-  message: string;
-  adapterInfo?: {
-    name?: string;
-    features?: string[];
-  };
-}
-
-const initWebGPU = async (canvas: HTMLCanvasElement) => {
-  if (!('gpu' in navigator)) {
-    return { supported: false, message: 'WebGPU not supported in this browser' } as WebGPUStatus;
-  }
-  try {
-    const adapter = await (navigator as any).gpu.requestAdapter();
-    if (!adapter) return { supported: false, message: 'No suitable GPU adapter found' };
-    const device = await adapter.requestDevice();
-  const context = canvas.getContext('webgpu') as unknown as GPUCanvasContext | null;
-  if (!context) return { supported: false, message: 'Failed to get WebGPU context' };
-
-    const format = (navigator as any).gpu.getPreferredCanvasFormat();
-    context.configure({ device, format, alphaMode: 'premultiplied' });
-
-    // Simple triangle shader (WGSL)
-    const shaderModule = device.createShaderModule({
-      code: `@vertex fn vs_main(@builtin(vertex_index) VertexIndex : u32) -> @builtin(position) vec4f {\n        var pos = array<vec2f, 3>(\n            vec2f(0.0, 0.5),\n            vec2f(-0.5, -0.5),\n            vec2f(0.5, -0.5)\n        );\n        let xy = pos[VertexIndex];\n        return vec4f(xy, 0.0, 1.0);\n      }\n      @fragment fn fs_main() -> @location(0) vec4f {\n        return vec4f(1.0, 0.4, 0.1, 1.0);\n      }`,
-    });
-
-    const pipeline = device.createRenderPipeline({
-      layout: 'auto',
-      vertex: { module: shaderModule, entryPoint: 'vs_main' },
-      fragment: { module: shaderModule, entryPoint: 'fs_main', targets: [{ format }] },
-      primitive: { topology: 'triangle-list' },
-    });
-
-    let frameId: number;
-    const render = () => {
-      const encoder = device.createCommandEncoder();
-  const textureView = (context as GPUCanvasContext).getCurrentTexture().createView();
-      const pass = encoder.beginRenderPass({
-        colorAttachments: [{
-          view: textureView,
-          clearValue: { r: 0.05, g: 0.05, b: 0.08, a: 1 },
-          loadOp: 'clear',
-          storeOp: 'store',
-        }],
-      });
-      pass.setPipeline(pipeline);
-      pass.draw(3, 1, 0, 0);
-      pass.end();
-      device.queue.submit([encoder.finish()]);
-      frameId = requestAnimationFrame(render);
-    };
-    render();
-    return { supported: true, message: 'WebGPU initialized', adapterInfo: { name: adapter.name, features: Array.from(adapter.features || []) } } as WebGPUStatus;
-  } catch (e: any) {
-    return { supported: false, message: 'WebGPU init failed: ' + e?.message };
-  }
-};
+interface WebGPUStatus { supported: boolean; message: string; adapterInfo?: { name?: string; features?: string[] } }
 
 export const WebGPUCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [status, setStatus] = useState<WebGPUStatus>({ supported: true, message: 'Initializing...' });
-  const [fps, setFps] = useState<number>(0);
-  const lastFrameRef = useRef<number>(performance.now());
-  const framesRef = useRef<number>(0);
-  const lastFpsUpdateRef = useRef<number>(performance.now());
+  const [fps, setFps] = useState(0);
+  const framesRef = useRef(0);
+  const lastFpsUpdateRef = useRef(performance.now());
+  const lastTimeRef = useRef(performance.now());
+  const particleRef = useRef<ParticleSystem | null>(null);
+  const lightningRef = useRef<{ segs: any[]; t: number } | null>(null);
 
+  // Main animation / metrics loop (covers fallback rendering)
   useEffect(() => {
-    let rafId: number;
-
-    const measure = () => {
+    let raf: number;
+    const loop = () => {
       const now = performance.now();
-      framesRef.current += 1;
-      if (now - lastFpsUpdateRef.current >= 500) { // update twice a second
+      const dt = (now - lastTimeRef.current) / 1000;
+      lastTimeRef.current = now;
+      framesRef.current++;
+      if (now - lastFpsUpdateRef.current > 500) {
         const delta = now - lastFpsUpdateRef.current;
         setFps(Math.round((framesRef.current * 1000) / delta));
         framesRef.current = 0;
         lastFpsUpdateRef.current = now;
       }
-      lastFrameRef.current = now;
-      rafId = requestAnimationFrame(measure);
+      // Fallback effects when WebGPU unsupported
+      const canvas = canvasRef.current;
+      if (canvas && !status.supported) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          if (!particleRef.current) particleRef.current = new ParticleSystem(500);
+          // spawn bursts
+            if (Math.random() < 0.07) {
+            const x = Math.random() * canvas.width;
+            const y = Math.random() * canvas.height * 0.6;
+            particleRef.current.spawnBurst(x, y, 20 + Math.random()*20);
+            if (Math.random() < 0.35) {
+              const lx = Math.random() * canvas.width;
+              lightningRef.current = { segs: generateLightning(lx, 0, lx + (Math.random()-0.5)*140, canvas.height * (0.4+Math.random()*0.4)), t: 0 };
+            }
+          }
+          particleRef.current.update(dt);
+          ctx.fillStyle = '#090910';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          particleRef.current.draw2D(ctx);
+          if (lightningRef.current) {
+            lightningRef.current.t += dt * 3.2;
+            const alpha = 1 - lightningRef.current.t;
+            if (alpha > 0) drawLightning(ctx, lightningRef.current.segs, alpha); else lightningRef.current = null;
+          }
+        }
+      }
+      raf = requestAnimationFrame(loop);
     };
-    rafId = requestAnimationFrame(measure);
-    return () => cancelAnimationFrame(rafId);
-  }, []);
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [status.supported]);
 
+  // Init path (manager -> triangle fallback -> 2D fallback)
   useEffect(() => {
     if (!canvasRef.current) return;
     let mounted = true;
     const canvas = canvasRef.current;
-    const run = async () => {
-      const res = await initWebGPU(canvas);
-      if (!res.supported) {
-        // Fallback: simple 2D spinning square
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          let angle = 0;
-          const loop = () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#111';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.save();
-            ctx.translate(canvas.width / 2, canvas.height / 2);
-            ctx.rotate(angle);
-            ctx.fillStyle = '#ff7a1c';
-            ctx.fillRect(-40, -40, 80, 80);
-            ctx.restore();
-            angle += 0.02;
-            if (mounted) requestAnimationFrame(loop);
-          };
-          loop();
-        }
+    (async () => {
+      const mgr = WebGPUManager.instance;
+      const res = await mgr.init(canvas);
+      if (res.ok) {
+        if (mounted) setStatus({ supported: true, message: 'WebGPU ready', adapterInfo: { name: res.adapterName, features: res.features } });
+        return;
       }
-      if (mounted) setStatus(res);
-    };
-    run();
+      // If manager failed, attempt inline minimal triangle (reuse old logic)
+      const tri = await (async () => {
+        if (!('gpu' in navigator)) return { supported: false, message: 'WebGPU not supported' };
+        try {
+          const adapter = await (navigator as any).gpu.requestAdapter();
+          if (!adapter) return { supported: false, message: 'No adapter' };
+          const device = await adapter.requestDevice();
+          const ctx = canvas.getContext('webgpu') as any;
+          if (!ctx) return { supported: false, message: 'No context' };
+          const format = (navigator as any).gpu.getPreferredCanvasFormat();
+          ctx.configure({ device, format, alphaMode: 'premultiplied' });
+          const shader = device.createShaderModule({ code: `@vertex fn v(@builtin(vertex_index) i:u32)->@builtin(position) vec4f{var p=array<vec2f,3>(vec2f(0.0,0.6),vec2f(-0.6,-0.6),vec2f(0.6,-0.6));return vec4f(p[i],0,1);} @fragment fn f()->@location(0) vec4f{return vec4f(1,0.5,0.15,1);}` });
+          const pipe = device.createRenderPipeline({ layout:'auto', vertex:{ module:shader, entryPoint:'v'}, fragment:{ module:shader, entryPoint:'f', targets:[{format}] }, primitive:{ topology:'triangle-list'} });
+          const draw = () => {
+            const enc = device.createCommandEncoder();
+            const view = ctx.getCurrentTexture().createView();
+            const pass = enc.beginRenderPass({ colorAttachments:[{ view, clearValue:{r:0.05,g:0.05,b:0.08,a:1}, loadOp:'clear', storeOp:'store'}]});
+            pass.setPipeline(pipe); pass.draw(3); pass.end(); device.queue.submit([enc.finish()]);
+            if (mounted && status.supported) requestAnimationFrame(draw); // Only continue if still marked supported
+          };
+          requestAnimationFrame(draw);
+          return { supported: true, message: 'WebGPU (triangle)' } as WebGPUStatus;
+        } catch (e:any) { return { supported:false, message:'Inline init failed: '+e?.message }; }
+      })();
+      if (mounted) setStatus(tri);
+      if (!tri.supported) {
+        // final fallback is handled by animation loop which sees supported=false
+      }
+    })();
 
     const handleResize = () => {
       if (!canvasRef.current) return;
@@ -135,10 +117,7 @@ export const WebGPUCanvas: React.FC = () => {
     };
     handleResize();
     window.addEventListener('resize', handleResize);
-    return () => {
-      mounted = false;
-      window.removeEventListener('resize', handleResize);
-    };
+    return () => { mounted = false; window.removeEventListener('resize', handleResize); };
   }, []);
 
   return (
@@ -151,7 +130,7 @@ export const WebGPUCanvas: React.FC = () => {
       <canvas ref={canvasRef} width={400} height={300} style={{ width: '100%', display: 'block', borderRadius: 4 }} />
       {!status.supported && (
         <div style={{ color: '#f66', marginTop: 8, fontSize: 12 }}>
-          Fallback 2D canvas running. Enable WebGPU (Chrome Canary flag --enable-unsafe-webgpu) for enhanced effects.
+          Fallback particle + lightning (Canvas2D). Enable WebGPU for richer effects.
         </div>
       )}
     </div>
