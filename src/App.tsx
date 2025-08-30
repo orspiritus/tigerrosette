@@ -9,6 +9,7 @@ import { DuelInviteReceiver } from './components/DuelInviteReceiver';
 import { LevelUpNotification } from './components/LevelUpNotification';
 import { ItemDropNotification } from './components/ItemDropNotification';
 import { TelegramProvider } from './components/TelegramProvider';
+import WebGPUCanvas from './components/WebGPUCanvas';
 
 function App() {
   const { gameState, levelUpNotification, hideLevelUpNotification } = useGameStore();
@@ -53,7 +54,14 @@ function App() {
   return (
     <TelegramProvider>
       <div className="App">
-        {gameState.mode === 'menu' && <MainMenu />}
+        {gameState.mode === 'menu' && (
+          <>
+            <MainMenu />
+            <div style={{ margin: '16px auto', maxWidth: 420 }}>
+              <WebGPUCanvas />
+            </div>
+          </>
+        )}
         {gameState.mode === 'single' && <GameScreen />}
         {gameState.mode === 'multiplayer' && <MultiplayerScreen />}
         {gameState.mode === 'duel-invite' && <DuelInviteScreen />}
