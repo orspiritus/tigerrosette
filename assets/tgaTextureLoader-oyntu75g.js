@@ -1,0 +1,2 @@
+import{G as a,U as p}from"./tga-BWmadVoa.js";import"./pointsCloudSystem-2vcS-S4d.js";import"./index-rhFFGTpy.js";import"./motion-3WHHzQTP.js";import"./vendor-CIP6LD3P.js";class c{constructor(){this.supportCascades=!1}loadCubeData(){throw".env not supported in Cube."}loadData(e,t,s){const o=new Uint8Array(e.buffer,e.byteOffset,e.byteLength),r=a(o);s(r.width,r.height,t.generateMipMaps,!1,()=>{p(t,o)})}}export{c as _TGATextureLoader};
+//# sourceMappingURL=tgaTextureLoader-oyntu75g.js.map

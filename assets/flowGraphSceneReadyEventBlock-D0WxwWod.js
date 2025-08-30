@@ -1,0 +1,2 @@
+import{bV as t,ff as r}from"./pointsCloudSystem-2vcS-S4d.js";import"./index-rhFFGTpy.js";import"./motion-3WHHzQTP.js";import"./vendor-CIP6LD3P.js";class n extends t{constructor(){super(...arguments),this.initPriority=-1,this.type="SceneReady"}_executeEvent(e,o){return this._execute(e),!0}_preparePendingTasks(e){}_cancelPendingTasks(e){}getClassName(){return"FlowGraphSceneReadyEventBlock"}}r("FlowGraphSceneReadyEventBlock",n);export{n as FlowGraphSceneReadyEventBlock};
+//# sourceMappingURL=flowGraphSceneReadyEventBlock-D0WxwWod.js.map

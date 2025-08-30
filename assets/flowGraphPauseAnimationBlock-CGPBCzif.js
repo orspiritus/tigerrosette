@@ -1,0 +1,2 @@
+import{gT as t,bY as i,ff as o}from"./pointsCloudSystem-2vcS-S4d.js";import"./index-rhFFGTpy.js";import"./motion-3WHHzQTP.js";import"./vendor-CIP6LD3P.js";class e extends t{constructor(a){super(a),this.animationToPause=this.registerDataInput("animationToPause",i)}_execute(a){this.animationToPause.getValue(a).pause(),this.out._activateSignal(a)}getClassName(){return"FlowGraphPauseAnimationBlock"}}o("FlowGraphPauseAnimationBlock",e);export{e as FlowGraphPauseAnimationBlock};
+//# sourceMappingURL=flowGraphPauseAnimationBlock-CGPBCzif.js.map
